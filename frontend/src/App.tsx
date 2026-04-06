@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { BrowserRouter, Routes, Route, useParams, useNavigate } from 'react-router-dom'
 import DiagramView from './components/DiagramView'
+import PipelineView from './components/PipelineView'
+import EmotionsView from './components/EmotionsView'
 import type { AppName } from './types'
 import { APP_NAMES } from './types'
 
@@ -25,6 +27,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<DiagramPage />} />
+        <Route path="/pipelines" element={<PipelineView />} />
+        <Route path="/emotions" element={<EmotionsView />} />
         <Route path="/:app" element={<DiagramPage />} />
       </Routes>
     </BrowserRouter>
