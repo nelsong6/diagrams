@@ -3,6 +3,12 @@ import { BrowserRouter, Routes, Route, useParams, useNavigate } from 'react-rout
 import DiagramView from './components/DiagramView'
 import PipelineView from './components/PipelineView'
 import EmotionsView from './components/EmotionsView'
+import FztArchView from './components/FztArchView'
+import FztProposedView from './components/FztProposedView'
+import FztReposView from './components/FztReposView'
+import FztSharedView from './components/FztSharedView'
+import FztToolPage from './components/FztToolPage'
+import FztMatrixView from './components/FztMatrixView'
 import type { AppName } from './types'
 import { APP_NAMES } from './types'
 
@@ -28,6 +34,12 @@ export default function App() {
       <Routes>
         <Route path="/" element={<DiagramPage />} />
         <Route path="/pipelines" element={<PipelineView />} />
+        <Route path="/fzt" element={<FztArchView />} />
+        <Route path="/fzt/proposed" element={<FztProposedView />} />
+        <Route path="/fzt/repos" element={<FztReposView />} />
+        <Route path="/fzt/shared" element={<FztSharedView />} />
+        <Route path="/fzt/tool/:tool" element={<FztToolPage />} />
+        <Route path="/fzt/matrix" element={<FztMatrixView />} />
         <Route path="/emotions" element={<EmotionsView />} />
         <Route path="/:app" element={<DiagramPage />} />
       </Routes>

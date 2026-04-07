@@ -103,12 +103,17 @@ export default function DiagramView({ selectedApp, onSelectApp }: DiagramViewPro
   return (
     <div className="flex flex-col h-screen">
       <AppFilter selectedApp={selectedApp} onSelect={onSelectApp} />
-      <Link
-        to="/pipelines"
-        className="absolute top-2 right-4 z-10 text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
-      >
-        pipelines &rarr;
-      </Link>
+      <div className="absolute top-2 right-4 z-10 flex gap-3 text-[10px] text-slate-500">
+        <Link to="/pipelines" className="hover:text-slate-300 transition-colors">
+          pipelines &rarr;
+        </Link>
+        <Link to="/fzt" className="hover:text-slate-300 transition-colors">
+          fzt &rarr;
+        </Link>
+        <Link to="/emotions" className="hover:text-slate-300 transition-colors">
+          emotions &rarr;
+        </Link>
+      </div>
       <div className="flex-1 relative">
         <ReactFlow
           nodes={filteredNodes}
