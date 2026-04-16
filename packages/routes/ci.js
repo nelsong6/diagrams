@@ -207,28 +207,32 @@ export function createCIRoutes({ webhookSecret, githubAppId, githubAppPrivateKey
         Accept: 'application/vnd.github+json',
       };
 
-      // Fetch latest published route package version from GitHub Packages npm registry
+      // Fetch latest published route package version from GitHub Packages API
       const packageFetches = Object.entries(ROUTE_PACKAGES).map(async ([repo, pkgName]) => {
         try {
-          const res = await fetch(`https://npm.pkg.github.com/${pkgName}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
+          const shortName = pkgName.replace('@nelsong6/', '');
+          const res = await fetch(
+            `https://api.github.com/users/nelsong6/packages/npm/${shortName}/versions?per_page=1`,
+            { headers },
+          );
           if (!res.ok) {
-            console.error(`[ci] npm registry HTTP ${res.status} for ${repo} (${pkgName})`);
+            const msg = `Package API HTTP ${res.status}`;
+            console.error(`[ci] ${msg} for ${repo} (${pkgName})`);
+            versionErrors.set(repo, msg);
             return;
           }
           const data = await res.json();
-          const latest = data['dist-tags']?.latest;
-          if (!latest) return;
+          if (!data.length) return;
           packageVersions.set(repo, {
             repo: `nelsong6/${repo}`,
             repoName: repo,
-            version: latest,
-            publishedAt: new Date().toISOString(),
+            version: data[0].name,
+            publishedAt: data[0].created_at,
             htmlUrl: `https://github.com/nelsong6/${repo}/packages`,
           });
         } catch (err) {
           console.error(`[ci] Package backfill failed for ${repo} (${pkgName}):`, err.message);
+          versionErrors.set(repo, err.message);
         }
       });
 
