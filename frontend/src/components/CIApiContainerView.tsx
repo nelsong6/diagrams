@@ -4,6 +4,7 @@ import {
   Background,
   Controls,
   BackgroundVariant,
+  MarkerType,
   type Node,
   type Edge,
 } from '@xyflow/react'
@@ -49,7 +50,7 @@ function buildLayout(
   })
   const maxHostHeight = Math.max(...hostHeights)
 
-  // Host nodes (top row)
+  // Host nodes (top row) — explicit width so handle centers align with packages
   for (let i = 0; i < n; i++) {
     const repo = hostRepos[i]
     const runs = runsByRepo.get(repo) || []
@@ -59,6 +60,7 @@ function buildLayout(
       id: repo,
       type: 'ci',
       position: { x: i * (HOST_NODE_WIDTH + HOST_SPACING), y: 0 },
+      style: { width: HOST_NODE_WIDTH },
       data: {
         label: repo,
         repoName: repo,
@@ -112,6 +114,7 @@ function buildLayout(
       parentId: 'api-container',
       extent: 'parent' as const,
       position: { x: pkgX, y: CONTAINER_PADDING_TOP },
+      style: { width: PACKAGE_NODE_WIDTH },
       data: {
         label: pkgShortName,
         deployedVersion,
