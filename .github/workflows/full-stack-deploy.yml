@@ -22,7 +22,7 @@ jobs:
     uses: nelsong6/pipeline-templates/.github/workflows/tofu-outputs-template.yml@main
     with:
       storage_account: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
-      state_key: infra-diagram.tfstate
+      state_key: diagrams.tfstate
     secrets: inherit
 
   deploy-frontend:

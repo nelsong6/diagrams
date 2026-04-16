@@ -24,5 +24,5 @@ jobs:
     with:
       working_directory: tofu
       backend_storage_account: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
-      backend_key: infra-diagram.tfstate
+      backend_key: diagrams.tfstate
     secrets: inherit
