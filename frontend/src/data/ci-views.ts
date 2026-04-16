@@ -1,35 +1,7 @@
-import type { DispatchEdge } from '../components/CIView'
-
-// ── fzt view ────────────────────────────────────────────────
-// fzt engine → fzt-terminal → consumers (homepage, showcase, picker)
-
-export const fztRepos = ['fzt', 'fzt-terminal', 'my-homepage', 'fzt-showcase', 'picker']
-
-export const fztEdges: DispatchEdge[] = [
-  ['fzt', 'fzt-terminal'],
-  ['fzt-terminal', 'my-homepage'],
-  ['fzt-terminal', 'fzt-showcase'],
-  ['fzt-terminal', 'picker'],
-]
-
-// ── api view ────────────────────────────────────────────────
-// App repos publish route packages → dispatch → api rebuilds
-
-export const apiRepos = [
-  'my-homepage', 'fzt-terminal', 'infra-diagram',
-  'kill-me', 'plant-agent', 'investing', 'house-hunt',
-  'api',
-]
-
-export const apiEdges: DispatchEdge[] = [
-  ['my-homepage', 'api'],
-  ['fzt-terminal', 'api'],
-  ['infra-diagram', 'api'],
-  ['kill-me', 'api'],
-  ['plant-agent', 'api'],
-  ['investing', 'api'],
-  ['house-hunt', 'api'],
-]
+export interface DispatchEdge {
+  source: string
+  target: string
+}
 
 // ── api container view ──────────────────────────────────────
 // Host repos that publish route packages to the shared API
@@ -69,14 +41,14 @@ export const overviewRepos = [
 ]
 
 export const overviewEdges: DispatchEdge[] = [
-  ['fzt', 'fzt-terminal'],
-  ['fzt-terminal', 'my-homepage'],
-  ['fzt-terminal', 'fzt-showcase'],
-  ['fzt-terminal', 'api'],
-  ['my-homepage', 'api'],
-  ['kill-me', 'api'],
-  ['plant-agent', 'api'],
-  ['investing', 'api'],
-  ['house-hunt', 'api'],
-  ['infra-diagram', 'api'],
+  { source: 'fzt', target: 'fzt-terminal' },
+  { source: 'fzt-terminal', target: 'my-homepage' },
+  { source: 'fzt-terminal', target: 'fzt-showcase' },
+  { source: 'fzt-terminal', target: 'api' },
+  { source: 'my-homepage', target: 'api' },
+  { source: 'kill-me', target: 'api' },
+  { source: 'plant-agent', target: 'api' },
+  { source: 'investing', target: 'api' },
+  { source: 'house-hunt', target: 'api' },
+  { source: 'infra-diagram', target: 'api' },
 ]

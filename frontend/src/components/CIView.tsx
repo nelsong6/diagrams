@@ -13,14 +13,12 @@ import { useELKLayout } from '../hooks/useELKLayout'
 import CIPipelineNodeComponent, { type CINodeData, estimateNodeHeight } from './CIPipelineNode'
 import ELKEdgeComponent from './ELKEdge'
 import type { CIRun, PublishedVersion, DeployedVersion, VersionErrors, ConnectionStatus } from '../types/ci'
+import type { DispatchEdge } from '../data/ci-views'
 
 const nodeTypes = { ci: CIPipelineNodeComponent }
 const edgeTypes = { elk: ELKEdgeComponent }
 
-// [source, target]
-export type DispatchEdge = [string, string]
-
-interface CIViewProps {
+export interface CIViewProps {
   title: string
   repos: string[]
   edges: DispatchEdge[]
@@ -57,7 +55,8 @@ function buildInputNodes(
 }
 
 function buildInputEdges(chains: DispatchEdge[], runsByRepo: Map<string, CIRun[]>): Edge[] {
-  return chains.map(([src, dst]) => {
+  return chains.map((edge) => {
+    const { source: src, target: dst } = edge
     const srcRuns = runsByRepo.get(src) || []
     const dstRuns = runsByRepo.get(dst) || []
     const srcActive = srcRuns.some(r => r.status === 'in_progress' || r.status === 'queued')

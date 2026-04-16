@@ -142,6 +142,9 @@ function CIPipelineNodeComponent({ data }: NodeProps) {
                 using {d.deployedVersion.versions.fztTerminal}
               </span>
             )}
+            {!d.versionError && !d.publishedVersion && !d.deployedVersion?.versions?.fztTerminal && d.deployedVersion?.versions?.sha && (
+              <span className="text-slate-400 font-mono">{d.deployedVersion.versions.sha}</span>
+            )}
           </div>
         )}
       </div>
