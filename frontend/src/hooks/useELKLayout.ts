@@ -7,7 +7,7 @@ const elk = new ELK()
 const DEFAULT_OPTIONS: Record<string, string> = {
   'elk.algorithm': 'layered',
   'elk.direction': 'DOWN',
-  'elk.layered.spacing.nodeNodeBetweenLayers': '80',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '100',
   'elk.spacing.nodeNode': '40',
   'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
   'elk.edgeRouting': 'ORTHOGONAL',
@@ -51,11 +51,16 @@ export function useELKLayout(
         id: node.id,
         width: NODE_WIDTH,
         height: NODE_HEIGHT,
+        properties: { 'elk.portConstraints': 'FIXED_SIDE' },
+        ports: [
+          { id: `${node.id}-south`, properties: { 'elk.port.side': 'SOUTH' } },
+          { id: `${node.id}-north`, properties: { 'elk.port.side': 'NORTH' } },
+        ],
       })),
       edges: inputEdges.map((edge) => ({
         id: edge.id,
-        sources: [edge.source],
-        targets: [edge.target],
+        sources: [`${edge.source}-south`],
+        targets: [`${edge.target}-north`],
       })),
     }
 
