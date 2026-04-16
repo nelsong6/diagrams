@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, createSign, timingSafeEqual } from 'node:crypto';
 
 const REPOS = [
   'fzt', 'fzt-terminal', 'my-homepage', 'fzt-showcase',
@@ -31,15 +31,50 @@ const SITE_URLS = {
   'investing': 'https://investing.romaine.life',
 };
 
+// ── GitHub App installation token ───────────────────────────────
+
+function createAppJWT(appId, privateKey) {
+  const now = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    iat: now - 60,
+    exp: now + 600,
+    iss: appId,
+  })).toString('base64url');
+  const sign = createSign('RSA-SHA256');
+  sign.update(`${header}.${payload}`);
+  const signature = sign.sign(privateKey, 'base64url');
+  return `${header}.${payload}.${signature}`;
+}
+
+async function getInstallationToken(appId, privateKey) {
+  const jwt = createAppJWT(appId, privateKey);
+  const headers = { Authorization: `Bearer ${jwt}`, Accept: 'application/vnd.github+json' };
+
+  const installRes = await fetch('https://api.github.com/app/installations', { headers });
+  if (!installRes.ok) throw new Error(`Failed to list installations: HTTP ${installRes.status}`);
+  const installations = await installRes.json();
+  if (!installations.length) throw new Error('No GitHub App installations found');
+
+  const tokenRes = await fetch(
+    `https://api.github.com/app/installations/${installations[0].id}/access_tokens`,
+    { method: 'POST', headers },
+  );
+  if (!tokenRes.ok) throw new Error(`Failed to create installation token: HTTP ${tokenRes.status}`);
+  const { token } = await tokenRes.json();
+  return token;
+}
+
 /**
  * CI Dashboard routes — webhook receiver + SSE broadcaster + version tracking.
  *
  * @param {object} opts
  * @param {string} opts.webhookSecret - GitHub webhook HMAC signing secret
- * @param {string} opts.githubToken - GitHub PAT for backfilling runs on cold start
+ * @param {string} [opts.githubAppId] - GitHub App ID for generating installation tokens
+ * @param {string} [opts.githubAppPrivateKey] - GitHub App private key (PEM)
  * @param {Record<string, string>} [opts.installedPackages] - route package versions from the host's package-lock
  */
-export function createCIRoutes({ webhookSecret, githubToken, installedPackages }) {
+export function createCIRoutes({ webhookSecret, githubAppId, githubAppPrivateKey, installedPackages }) {
   const router = Router();
 
   // In-memory state
@@ -96,19 +131,38 @@ export function createCIRoutes({ webhookSecret, githubToken, installedPackages }
     };
   }
 
+  // ── GitHub App token (generated once per backfill cycle) ───────
+
+  let cachedToken = null;
+
+  async function getGitHubToken() {
+    if (cachedToken) return cachedToken;
+    if (!githubAppId || !githubAppPrivateKey) {
+      console.warn('[ci] No GitHub App credentials configured — skipping backfill');
+      return null;
+    }
+    try {
+      cachedToken = await getInstallationToken(githubAppId, githubAppPrivateKey);
+      console.log('[ci] Generated GitHub App installation token');
+      return cachedToken;
+    } catch (err) {
+      console.error('[ci] Failed to generate GitHub App token:', err.message);
+      return null;
+    }
+  }
+
   // ── Backfill from GitHub API on cold start ────────────────────
 
   async function backfillFromGitHub() {
     if (backfillPromise) return backfillPromise;
-    if (!githubToken) {
-      console.warn('[ci] No githubToken configured — skipping backfill');
-      return;
-    }
+
+    const token = await getGitHubToken();
+    if (!token) return;
 
     backfillPromise = (async () => {
       console.log('[ci] Backfilling runs from GitHub API...');
       const headers = {
-        Authorization: `token ${githubToken}`,
+        Authorization: `token ${token}`,
         Accept: 'application/vnd.github+json',
       };
 
@@ -143,11 +197,13 @@ export function createCIRoutes({ webhookSecret, githubToken, installedPackages }
 
   async function backfillVersions() {
     if (versionBackfillPromise) return versionBackfillPromise;
-    if (!githubToken) return;
+
+    const token = await getGitHubToken();
+    if (!token) return;
 
     versionBackfillPromise = (async () => {
       const headers = {
-        Authorization: `token ${githubToken}`,
+        Authorization: `token ${token}`,
         Accept: 'application/vnd.github+json',
       };
 
@@ -155,7 +211,7 @@ export function createCIRoutes({ webhookSecret, githubToken, installedPackages }
       const packageFetches = Object.entries(ROUTE_PACKAGES).map(async ([repo, pkgName]) => {
         try {
           const res = await fetch(`https://npm.pkg.github.com/${pkgName}`, {
-            headers: { Authorization: `token ${githubToken}` },
+            headers: { Authorization: `token ${token}` },
           });
           if (!res.ok) {
             const msg = `npm registry HTTP ${res.status}`;
