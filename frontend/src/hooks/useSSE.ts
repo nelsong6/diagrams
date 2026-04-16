@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import type { CIRun, ConnectionStatus } from '../types/ci'
+import type { CIRun, PublishedVersion, DeployedVersion, ConnectionStatus } from '../types/ci'
 
 const API_BASE = import.meta.env.DEV
   ? 'http://localhost:3000'
@@ -9,6 +9,8 @@ const SSE_URL = `${API_BASE}/ci/events`
 
 export function useSSE(enabled: boolean) {
   const [runs, setRuns] = useState<Map<string, CIRun>>(new Map())
+  const [versions, setVersions] = useState<Map<string, PublishedVersion>>(new Map())
+  const [deployed, setDeployed] = useState<Map<string, DeployedVersion>>(new Map())
   const [status, setStatus] = useState<ConnectionStatus>('disconnected')
   const esRef = useRef<EventSource | null>(null)
   const retryRef = useRef(0)
@@ -22,12 +24,26 @@ export function useSSE(enabled: boolean) {
     esRef.current = es
 
     es.addEventListener('init', (e) => {
-      const snapshot: CIRun[] = JSON.parse(e.data)
-      const map = new Map<string, CIRun>()
-      for (const run of snapshot) {
-        map.set(`${run.repo}/${run.runId}`, run)
+      const snapshot = JSON.parse(e.data)
+
+      const runMap = new Map<string, CIRun>()
+      for (const run of snapshot.runs || []) {
+        runMap.set(`${run.repo}/${run.runId}`, run)
       }
-      setRuns(map)
+      setRuns(runMap)
+
+      const verMap = new Map<string, PublishedVersion>()
+      for (const v of snapshot.versions || []) {
+        verMap.set(v.repoName, v)
+      }
+      setVersions(verMap)
+
+      const depMap = new Map<string, DeployedVersion>()
+      for (const d of snapshot.deployed || []) {
+        depMap.set(d.repo, d)
+      }
+      setDeployed(depMap)
+
       setStatus('connected')
       retryRef.current = 0
     })
@@ -41,12 +57,29 @@ export function useSSE(enabled: boolean) {
       })
     })
 
+    es.addEventListener('version', (e) => {
+      const ver: PublishedVersion = JSON.parse(e.data)
+      setVersions((prev) => {
+        const next = new Map(prev)
+        next.set(ver.repoName, ver)
+        return next
+      })
+    })
+
+    es.addEventListener('deployed', (e) => {
+      const dep: DeployedVersion = JSON.parse(e.data)
+      setDeployed((prev) => {
+        const next = new Map(prev)
+        next.set(dep.repo, dep)
+        return next
+      })
+    })
+
     es.onerror = () => {
       es.close()
       esRef.current = null
       setStatus('disconnected')
 
-      // Exponential backoff: 1s, 2s, 4s, 8s, max 30s
       const delay = Math.min(1000 * 2 ** retryRef.current, 30000)
       retryRef.current++
       timerRef.current = window.setTimeout(connect, delay)
@@ -75,5 +108,5 @@ export function useSSE(enabled: boolean) {
     return disconnect
   }, [enabled, connect, disconnect])
 
-  return { runs, status, disconnect }
+  return { runs, versions, deployed, status, disconnect }
 }

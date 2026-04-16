@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 /**
- * CI Dashboard routes — webhook receiver + SSE broadcaster.
+ * CI Dashboard routes — webhook receiver + SSE broadcaster + version tracking.
  *
  * @param {object} opts
  * @param {string} opts.webhookSecret - GitHub webhook HMAC signing secret
@@ -10,9 +10,18 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 export function createCIRoutes({ webhookSecret }) {
   const router = Router();
 
-  // In-memory pipeline state: key = `${repo}/${runId}`
-  const runs = new Map();
+  // In-memory state
+  const runs = new Map();              // key: `${repo}/${runId}` → pipeline run
+  const versions = new Map();          // key: repoName → latest published version
+  const deployedVersions = new Map();  // key: repoName → deployed version info
   const sseClients = new Set();
+
+  function broadcast(event, data) {
+    const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const client of sseClients) {
+      client.write(msg);
+    }
+  }
 
   // ── Webhook receiver ──────────────────────────────────────────
 
@@ -35,52 +44,87 @@ export function createCIRoutes({ webhookSecret }) {
     }
 
     const event = req.headers['x-github-event'];
-    if (event !== 'workflow_run') {
-      return res.status(200).json({ ignored: true, event });
-    }
 
-    const { action, workflow_run: wr } = req.body;
-    if (!wr) {
-      return res.status(400).json({ error: 'Missing workflow_run payload' });
-    }
-
-    const run = {
-      repo: wr.repository?.full_name || wr.head_repository?.full_name || 'unknown',
-      repoName: wr.repository?.name || 'unknown',
-      workflow: wr.name,
-      workflowId: wr.workflow_id,
-      runId: wr.id,
-      runNumber: wr.run_number,
-      status: wr.status,
-      conclusion: wr.conclusion,
-      headBranch: wr.head_branch,
-      headSha: wr.head_sha?.substring(0, 7),
-      commitMessage: wr.head_commit?.message?.split('\n')[0] || '',
-      event: wr.event,
-      htmlUrl: wr.html_url,
-      startedAt: wr.run_started_at,
-      updatedAt: wr.updated_at,
-      action,
-    };
-
-    const key = `${run.repo}/${run.runId}`;
-    runs.set(key, run);
-
-    // Prune runs older than 2 hours
-    const cutoff = Date.now() - 2 * 60 * 60 * 1000;
-    for (const [k, v] of runs) {
-      if (new Date(v.updatedAt).getTime() < cutoff) {
-        runs.delete(k);
+    // ── Release events — track latest published version ──
+    if (event === 'release') {
+      const { action, release, repository } = req.body;
+      if (action === 'published' && release && repository) {
+        const version = {
+          repo: repository.full_name,
+          repoName: repository.name,
+          version: release.tag_name,
+          publishedAt: release.published_at,
+          htmlUrl: release.html_url,
+        };
+        versions.set(repository.name, version);
+        broadcast('version', version);
+        return res.status(200).json({ received: true, type: 'release', version: release.tag_name });
       }
+      return res.status(200).json({ ignored: true, event, action });
     }
 
-    // Broadcast to SSE clients
-    const msg = `event: update\ndata: ${JSON.stringify(run)}\n\n`;
-    for (const client of sseClients) {
-      client.write(msg);
+    // ── Workflow run events — track pipeline status ──
+    if (event === 'workflow_run') {
+      const { action, workflow_run: wr } = req.body;
+      if (!wr) {
+        return res.status(400).json({ error: 'Missing workflow_run payload' });
+      }
+
+      const run = {
+        repo: wr.repository?.full_name || wr.head_repository?.full_name || 'unknown',
+        repoName: wr.repository?.name || 'unknown',
+        workflow: wr.name,
+        workflowId: wr.workflow_id,
+        runId: wr.id,
+        runNumber: wr.run_number,
+        status: wr.status,
+        conclusion: wr.conclusion,
+        headBranch: wr.head_branch,
+        headSha: wr.head_sha?.substring(0, 7),
+        commitMessage: wr.head_commit?.message?.split('\n')[0] || '',
+        event: wr.event,
+        htmlUrl: wr.html_url,
+        startedAt: wr.run_started_at,
+        updatedAt: wr.updated_at,
+        action,
+      };
+
+      const key = `${run.repo}/${run.runId}`;
+      runs.set(key, run);
+
+      // Prune runs older than 2 hours
+      const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+      for (const [k, v] of runs) {
+        if (new Date(v.updatedAt).getTime() < cutoff) {
+          runs.delete(k);
+        }
+      }
+
+      broadcast('update', run);
+      return res.status(200).json({ received: true, key });
     }
 
-    res.status(200).json({ received: true, key });
+    // Ignore other event types
+    return res.status(200).json({ ignored: true, event });
+  });
+
+  // ── Deploy report — consumer sites report their live versions ──
+
+  router.post('/deployed', (req, res) => {
+    const { site, repo, versions: deployedVers } = req.body;
+    if (!site || !repo) {
+      return res.status(400).json({ error: 'Missing site or repo' });
+    }
+
+    const deployed = {
+      site,
+      repo,
+      versions: deployedVers || {},
+      reportedAt: new Date().toISOString(),
+    };
+    deployedVersions.set(repo, deployed);
+    broadcast('deployed', deployed);
+    res.status(200).json({ received: true, repo });
   });
 
   // ── SSE endpoint ──────────────────────────────────────────────
@@ -93,12 +137,15 @@ export function createCIRoutes({ webhookSecret }) {
     });
 
     // Send current state snapshot
-    const snapshot = Array.from(runs.values());
+    const snapshot = {
+      runs: Array.from(runs.values()),
+      versions: Array.from(versions.values()),
+      deployed: Array.from(deployedVersions.values()),
+    };
     res.write(`event: init\ndata: ${JSON.stringify(snapshot)}\n\n`);
 
     sseClients.add(res);
 
-    // Keepalive every 30 seconds
     const keepalive = setInterval(() => {
       res.write(': keepalive\n\n');
     }, 30000);
@@ -109,12 +156,19 @@ export function createCIRoutes({ webhookSecret }) {
     });
   });
 
-  // ── Status snapshot ───────────────────────────────────────────
+  // ── Status snapshots ──────────────────────────────────────────
 
   router.get('/status', (req, res) => {
     res.json({
       runs: Array.from(runs.values()),
       clients: sseClients.size,
+    });
+  });
+
+  router.get('/versions', (req, res) => {
+    res.json({
+      published: Array.from(versions.values()),
+      deployed: Array.from(deployedVersions.values()),
     });
   });
 

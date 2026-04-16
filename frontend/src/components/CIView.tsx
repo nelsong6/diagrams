@@ -12,7 +12,7 @@ import { useSSE } from '../hooks/useSSE'
 import { useELKLayout } from '../hooks/useELKLayout'
 import CIPipelineNodeComponent, { type CINodeData, estimateNodeHeight } from './CIPipelineNode'
 import ELKEdgeComponent from './ELKEdge'
-import type { CIRun, ConnectionStatus } from '../types/ci'
+import type { CIRun, PublishedVersion, DeployedVersion, ConnectionStatus } from '../types/ci'
 
 const nodeTypes = { ci: CIPipelineNodeComponent }
 const edgeTypes = { elk: ELKEdgeComponent }
@@ -26,18 +26,28 @@ interface CIViewProps {
   edges: DispatchEdge[]
 }
 
-function buildInputNodes(repos: string[], runsByRepo: Map<string, CIRun[]>): Node[] {
+function buildInputNodes(
+  repos: string[],
+  runsByRepo: Map<string, CIRun[]>,
+  versions: Map<string, PublishedVersion>,
+  deployed: Map<string, DeployedVersion>,
+): Node[] {
   return repos.map((id) => {
     const runs = runsByRepo.get(id) || []
+    const pub = versions.get(id)
+    const dep = deployed.get(id)
+    const hasVersion = !!(pub || dep)
     return {
       id,
       type: 'ci',
-      position: { x: 0, y: 0 }, // ELK will override
+      position: { x: 0, y: 0 },
       data: {
         label: id,
         repoName: id,
         runs,
-        nodeHeight: estimateNodeHeight(runs),
+        nodeHeight: estimateNodeHeight(runs, hasVersion),
+        publishedVersion: pub,
+        deployedVersion: dep,
       } satisfies CINodeData,
     }
   })
@@ -80,7 +90,7 @@ function StatusDot({ status }: { status: ConnectionStatus }) {
 
 export default function CIView({ title, repos, edges: edgeDefs }: CIViewProps) {
   const [watching, setWatching] = useState(true)
-  const { runs, status } = useSSE(watching)
+  const { runs, versions, deployed, status } = useSSE(watching)
 
   const runsByRepo = useMemo(() => {
     const map = new Map<string, CIRun[]>()
@@ -91,7 +101,7 @@ export default function CIView({ title, repos, edges: edgeDefs }: CIViewProps) {
     return map
   }, [runs])
 
-  const inputNodes = useMemo(() => buildInputNodes(repos, runsByRepo), [repos, runsByRepo])
+  const inputNodes = useMemo(() => buildInputNodes(repos, runsByRepo, versions, deployed), [repos, runsByRepo, versions, deployed])
   const inputEdges = useMemo(() => buildInputEdges(edgeDefs, runsByRepo), [edgeDefs, runsByRepo])
 
   const { nodes, edges, layoutReady } = useELKLayout(inputNodes, inputEdges)

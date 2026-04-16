@@ -17,4 +17,19 @@ export interface CIRun {
   action: string // requested, in_progress, completed
 }
 
+export interface PublishedVersion {
+  repo: string
+  repoName: string
+  version: string
+  publishedAt: string
+  htmlUrl: string
+}
+
+export interface DeployedVersion {
+  site: string
+  repo: string
+  versions: Record<string, string> // e.g. { fztTerminal: "v0.1.16", deployedAt: "..." }
+  reportedAt: string
+}
+
 export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting'

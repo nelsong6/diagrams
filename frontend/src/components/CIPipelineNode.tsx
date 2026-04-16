@@ -1,23 +1,28 @@
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import type { CIRun } from '../types/ci'
+import type { CIRun, PublishedVersion, DeployedVersion } from '../types/ci'
 
 export interface CINodeData {
   label: string
   repoName: string
   runs: CIRun[]
   nodeHeight: number
+  publishedVersion?: PublishedVersion
+  deployedVersion?: DeployedVersion
 }
 
 // Estimate node height based on content
-const HEIGHT_EMPTY = 66    // label + "No recent runs" + padding + border
-const HEIGHT_WITH_RUN = 106 // label + workflow + commit + status + padding + border
-const HEIGHT_WITH_MORE = 123 // above + "+N more"
+const HEIGHT_EMPTY = 66         // label + "No recent runs" + padding + border
+const HEIGHT_WITH_RUN = 106     // label + workflow + commit + status + padding + border
+const HEIGHT_WITH_MORE = 123    // above + "+N more"
+const HEIGHT_VERSION_LINE = 16  // version tag line
 
-export function estimateNodeHeight(runs: CIRun[]): number {
-  if (runs.length === 0) return HEIGHT_EMPTY
-  if (runs.length > 1) return HEIGHT_WITH_MORE
-  return HEIGHT_WITH_RUN
+export function estimateNodeHeight(runs: CIRun[], hasVersion: boolean): number {
+  let h = HEIGHT_EMPTY
+  if (runs.length > 1) h = HEIGHT_WITH_MORE
+  else if (runs.length === 1) h = HEIGHT_WITH_RUN
+  if (hasVersion) h += HEIGHT_VERSION_LINE
+  return h
 }
 
 const STATUS_COLORS = {
@@ -115,6 +120,19 @@ function CIPipelineNodeComponent({ data }: NodeProps) {
         {d.runs.length > 1 && (
           <div className="text-[9px] text-slate-600 mt-1">
             +{d.runs.length - 1} more
+          </div>
+        )}
+
+        {(d.publishedVersion || d.deployedVersion) && (
+          <div className="text-[9px] mt-1.5 pt-1 border-t border-slate-700/50">
+            {d.publishedVersion && (
+              <span className="text-purple-400 font-mono">{d.publishedVersion.version}</span>
+            )}
+            {d.deployedVersion?.versions?.fztTerminal && (
+              <span className="text-cyan-400 font-mono ml-1">
+                using {d.deployedVersion.versions.fztTerminal}
+              </span>
+            )}
           </div>
         )}
       </div>
