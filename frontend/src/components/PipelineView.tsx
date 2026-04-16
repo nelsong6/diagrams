@@ -32,6 +32,12 @@ export default function PipelineView() {
           &larr; infra
         </Link>
         <h1 className="text-sm font-bold text-slate-300">Pipeline Dependencies</h1>
+        <Link
+          to="/ci"
+          className="text-xs text-green-500 hover:text-green-300 transition-colors"
+        >
+          live &rarr;
+        </Link>
       </div>
 
       {/* Legend */}

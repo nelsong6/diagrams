@@ -1,0 +1,17 @@
+{
+  "name": "@nelsong6/infra-diagram-routes",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "CI dashboard webhook handler and SSE endpoint for the shared API",
+  "main": "index.js",
+  "license": "MIT",
+  "peerDependencies": {
+    "express": "^4.18.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}
