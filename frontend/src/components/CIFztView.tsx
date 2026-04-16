@@ -81,7 +81,7 @@ function buildLayout(
     sourceHandle: 'provided-src',
     target: 'fzt-terminal',
     targetHandle: 'consumed-tgt',
-    type: 'straight',
+    type: 'smoothstep',
     animated: fztToTermCascading,
     style: {
       stroke: fztToTermCascading ? '#f59e0b' : '#334155',
@@ -124,7 +124,7 @@ function buildLayout(
       sourceHandle: 'provided-src',
       target: repoId,
       targetHandle: 'consumed-tgt',
-      type: 'straight',
+      type: 'smoothstep',
       animated: cascading,
       style: {
         stroke: cascading ? '#f59e0b' : '#334155',
