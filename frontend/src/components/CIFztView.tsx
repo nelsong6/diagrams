@@ -115,13 +115,15 @@ function buildLayout(
     })
 
     // Edge: fzt-terminal provided → consumer consumed
+    // Use left/center/right source handles to avoid squiggly overlapping routes
+    const sourceHandles = ['provided-src-left', 'provided-src', 'provided-src-right']
     const consumerActive = runs.some(r => r.status === 'in_progress' || r.status === 'queued')
     const cascading = fztTermActive || consumerActive
 
     edges.push({
       id: `fzt-terminal->${repoId}`,
       source: 'fzt-terminal',
-      sourceHandle: 'provided-src',
+      sourceHandle: sourceHandles[i],
       target: repoId,
       targetHandle: 'consumed-tgt',
       type: 'smoothstep',

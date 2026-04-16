@@ -118,6 +118,8 @@ function CICascadeNodeComponent({ data }: NodeProps) {
         <div className="pb-3 pt-1">
           <PackageBox label={d.provided.label} version={d.provided.version} />
           <Handle type="source" position={Position.Bottom} id="provided-src" className="!bg-transparent !border-0" />
+          <Handle type="source" position={Position.Bottom} id="provided-src-left" className="!bg-transparent !border-0" style={{ left: '25%' }} />
+          <Handle type="source" position={Position.Bottom} id="provided-src-right" className="!bg-transparent !border-0" style={{ left: '75%' }} />
         </div>
       )}
 
