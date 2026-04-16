@@ -1,13 +1,20 @@
 import { memo } from 'react'
-import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { type NodeProps } from '@xyflow/react'
 import type { CIRun } from '../types/ci'
 
 export interface CICascadeData {
   label: string
   runs: CIRun[]
-  consumed?: { label: string; version?: string }
-  provided?: { label: string; version?: string }
+  containerWidth: number
+  containerHeight: number
+  hasConsumed: boolean
+  hasProvided: boolean
 }
+
+// Layout constants — shared with CIFztView for positioning child package nodes
+export const CASCADE_PKG_HEIGHT = 44
+export const CASCADE_PKG_PADDING = 16
+export const CASCADE_TITLE_HEIGHT = 56
 
 function getStatus(runs: CIRun[]) {
   if (runs.length === 0) return 'idle'
@@ -48,20 +55,6 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
-function PackageBox({ label, version }: { label: string; version?: string }) {
-  return (
-    <div className="rounded-md px-3 py-2 border border-slate-600 bg-[#0f172a] mx-3">
-      <div className="text-[10px] text-slate-300 font-mono truncate">{label}</div>
-      <div className="text-[9px] mt-0.5">
-        {version
-          ? <span className="text-cyan-400 font-mono">{version}</span>
-          : <span className="text-slate-600">unknown</span>
-        }
-      </div>
-    </div>
-  )
-}
-
 function CICascadeNodeComponent({ data }: NodeProps) {
   const d = data as unknown as CICascadeData
   const status = getStatus(d.runs)
@@ -71,26 +64,23 @@ function CICascadeNodeComponent({ data }: NodeProps) {
     ? d.runs.reduce((a, b) => new Date(a.updatedAt) > new Date(b.updatedAt) ? a : b)
     : null
 
+  // Title is vertically centered between consumed and provided zones
+  const topOffset = d.hasConsumed ? CASCADE_PKG_HEIGHT + CASCADE_PKG_PADDING * 2 : 0
+
   return (
     <div
-      className={`rounded-lg border-2 min-w-[200px] transition-all duration-500 ${
+      className={`rounded-lg border-2 transition-all duration-500 ${
         status === 'in_progress' ? 'animate-pulse' : ''
       }`}
-      style={{ borderColor, backgroundColor: bgColor, boxShadow: status !== 'idle' && status !== 'cancelled' ? `0 0 8px ${borderColor}44` : 'none' }}
+      style={{
+        width: d.containerWidth,
+        height: d.containerHeight,
+        borderColor,
+        backgroundColor: bgColor,
+        boxShadow: status !== 'idle' && status !== 'cancelled' ? `0 0 8px ${borderColor}44` : 'none',
+      }}
     >
-      {/* Target handle at very top — for incoming edges from upstream provider */}
-      <Handle type="target" position={Position.Top} id="top-tgt" className="!bg-transparent !border-0" />
-
-      {/* Consumed package — above title */}
-      {d.consumed && (
-        <div className="pt-3 pb-1">
-          <Handle type="target" position={Position.Top} id="consumed-tgt" className="!bg-transparent !border-0" />
-          <PackageBox label={d.consumed.label} version={d.consumed.version} />
-        </div>
-      )}
-
-      {/* Title + status — center */}
-      <div className={`px-4 ${d.consumed ? 'py-2' : 'py-3'} ${d.provided ? '' : 'pb-3'}`}>
+      <div className="px-4 py-3" style={{ marginTop: topOffset }}>
         <div className="font-bold text-sm text-slate-200">{d.label}</div>
         {latestRun && (
           <div className="flex items-center gap-2 mt-1">
@@ -112,19 +102,6 @@ function CICascadeNodeComponent({ data }: NodeProps) {
           <div className="text-[10px] text-slate-600 mt-1">No recent runs</div>
         )}
       </div>
-
-      {/* Provided package — below title */}
-      {d.provided && (
-        <div className="pb-3 pt-1">
-          <PackageBox label={d.provided.label} version={d.provided.version} />
-          <Handle type="source" position={Position.Bottom} id="provided-src" className="!bg-transparent !border-0" />
-          <Handle type="source" position={Position.Bottom} id="provided-src-left" className="!bg-transparent !border-0" style={{ left: '25%' }} />
-          <Handle type="source" position={Position.Bottom} id="provided-src-right" className="!bg-transparent !border-0" style={{ left: '75%' }} />
-        </div>
-      )}
-
-      {/* Source handle at very bottom — for outgoing edges to downstream consumers */}
-      <Handle type="source" position={Position.Bottom} id="bottom-src" className="!bg-transparent !border-0" />
     </div>
   )
 }

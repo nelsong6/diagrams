@@ -11,6 +11,7 @@ function CIPackageNodeComponent({ data }: NodeProps) {
   return (
     <>
       <Handle type="target" position={Position.Top} id="top-tgt" className="!bg-transparent !border-0" />
+      <Handle type="source" position={Position.Bottom} id="bottom-src" className="!bg-transparent !border-0" />
       <div className="rounded-md px-3 py-2 border border-slate-600 bg-[#0f172a] min-w-[140px]">
         <div className="text-[10px] text-slate-300 font-mono truncate">{d.label}</div>
         <div className="text-[9px] mt-0.5">
