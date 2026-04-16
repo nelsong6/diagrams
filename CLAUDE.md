@@ -61,7 +61,7 @@ All state is in-memory (lost on API restart). Three Maps: `runs` (pipeline runs 
 
 ### Cold-start backfill
 
-On first SSE connection, `backfillFromGitHub()` fetches the 5 most recent `main`-branch runs per repo from the GitHub API (14 repos). Requires `githubToken`. The `backfilled` flag prevents re-fetching. Backfill runs are not broadcast — they populate `runs` silently and are included in the `init` snapshot sent to the triggering client.
+On first SSE connection, `backfillFromGitHub()` fetches the 5 most recent `main`-branch runs per repo from the GitHub API (14 repos). Requires `githubToken`. A shared Promise (`backfillPromise`) ensures concurrent SSE connections all await the same fetch rather than racing. Backfill runs are not broadcast — they populate `runs` silently and are included in the `init` snapshot sent to connecting clients.
 
 ### Monitored repos
 
