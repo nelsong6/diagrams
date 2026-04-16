@@ -38,7 +38,7 @@ tofu/             OpenTofu IaC — SWA (Free), DNS CNAME (docs.romaine.life), cu
 - **`/pipelines`** — Pipeline dependency diagram showing cross-repo CI/CD chains (fzt → my-homepage/fzt-showcase → api) with the dispatch/artifact flow and the lockfile gap issue node
 - **`/ci`** — Live CI dashboard (all repos). Push-based via GitHub App webhooks + SSE
 - **`/ci/fzt`** — fzt asset cascade: fzt → fzt-terminal → my-homepage, fzt-showcase, picker
-- **`/ci/api`** — Route dispatch chain: app repos → api
+- **`/ci/api`** — Route dispatch chain: host repos at top, API container box below with route package boxes inside. Manual layout (no ELK). Shows version comparison between published and deployed package versions.
 - **`/ci/tofu`** — Infrastructure repos: infra-bootstrap, api, infra-diagram, house-hunt, landing-page, emotions-mcp
 
 CI dashboard uses ELK (elkjs) for automatic node positioning and edge routing. Nodes are bottom-aligned per layer with dynamic heights. Webhook events from the `romaine-life-app` GitHub App flow through `api.romaine.life/ci/webhook` → SSE → browser. Cold start backfills from the GitHub API.
@@ -97,3 +97,5 @@ To add a new app or infra component: add a node in nodes.ts, wire edges in edges
 2. **Fixed cold-start backfill race condition** (`packages/routes/ci.js`) -- The `backfilled` boolean flag was set synchronously before async fetches completed. A second SSE client connecting mid-backfill skipped it entirely and got an empty `init` snapshot. Fix: replaced the boolean with a shared Promise (`backfillPromise`) so concurrent callers all await the same fetch.
 3. **Fixed backfill over-pruning** (`packages/routes/ci.js`) -- The 2-hour run cutoff ran immediately after backfill, deleting all fetched runs during quiet periods (no pushes in 2+ hours). Removed post-backfill pruning — webhook events still prune on arrival, which is the appropriate trigger.
 4. **Added missing-token warning** (`packages/routes/ci.js`) -- `console.warn` when `githubToken` is not configured, making the silent backfill skip visible in API logs.
+5. **API container view for `/ci/api`** -- Redesigned the API CI view from a flat node layout to a two-tier container layout. Host repos at the top, a large dashed-border API container below spanning all hosts, with route package boxes inside. Straight edges from each host to its package. Manual positioning (no ELK) since the layout is deterministic. New components: `CIApiContainerView`, `CIContainerNode`, `CIPackageNode`. Package deployed versions shown when available via the `/ci/deployed` endpoint.
+6. **Picker edge in fzt view** -- Added `['fzt-terminal', 'picker']` to `fztEdges` so picker is no longer an island on `/ci/fzt`. Depicts the consumer relationship (picker uses the fzt-automate binary from fzt-terminal releases).

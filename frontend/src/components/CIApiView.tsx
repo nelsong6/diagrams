@@ -1,6 +1,5 @@
-import CIView from './CIView'
-import { apiRepos, apiEdges } from '../data/ci-views'
+import CIApiContainerView from './CIApiContainerView'
 
 export default function CIApiView() {
-  return <CIView title="CI — api" repos={apiRepos} edges={apiEdges} />
+  return <CIApiContainerView />
 }

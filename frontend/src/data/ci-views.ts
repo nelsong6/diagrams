@@ -9,6 +9,7 @@ export const fztEdges: DispatchEdge[] = [
   ['fzt', 'fzt-terminal'],
   ['fzt-terminal', 'my-homepage'],
   ['fzt-terminal', 'fzt-showcase'],
+  ['fzt-terminal', 'picker'],
 ]
 
 // ── api view ────────────────────────────────────────────────
@@ -29,6 +30,24 @@ export const apiEdges: DispatchEdge[] = [
   ['investing', 'api'],
   ['house-hunt', 'api'],
 ]
+
+// ── api container view ──────────────────────────────────────
+// Host repos that publish route packages to the shared API
+
+export const apiHostRepos = [
+  'my-homepage', 'fzt-terminal', 'infra-diagram',
+  'kill-me', 'plant-agent', 'investing', 'house-hunt',
+]
+
+export const routePackageMap: Record<string, string> = {
+  'my-homepage': 'my-homepage-routes',
+  'fzt-terminal': 'fzt-terminal-routes',
+  'infra-diagram': 'infra-diagram-routes',
+  'kill-me': 'kill-me-routes',
+  'plant-agent': 'plant-agent-routes',
+  'investing': 'investing-routes',
+  'house-hunt': 'house-hunt-routes',
+}
 
 // ── tofu view ───────────────────────────────────────────────
 // Infrastructure repos with tofu/ directories
