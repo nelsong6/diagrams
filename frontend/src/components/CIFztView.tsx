@@ -119,7 +119,7 @@ function buildLayout(
     extent: 'parent' as const,
     position: { x: PKG_INSET, y: fztProvidedY },
     style: { width: PKG_WIDTH },
-    data: { label: 'engine', deployedVersion: versions.get('fzt')?.version, badge: 'go module' },
+    data: { label: 'fzt', deployedVersion: versions.get('fzt')?.version, badge: 'go module' },
   })
 
   // ── Row 1: fzt-frontend ─────────────────────────────────────────
@@ -163,7 +163,7 @@ function buildLayout(
     extent: 'parent' as const,
     position: { x: PKG_INSET, y: fePrvY },
     style: { width: PKG_WIDTH },
-    data: { label: 'frontend', deployedVersion: versions.get('fzt-frontend')?.version, badge: 'go module' },
+    data: { label: 'fzt-frontend', deployedVersion: versions.get('fzt-frontend')?.version, badge: 'go module' },
   })
 
   // Edge fzt.engine → fzt-frontend.in
@@ -225,7 +225,7 @@ function buildLayout(
     extent: 'parent' as const,
     position: { x: PKG_INSET, y: termPrvY },
     style: { width: PKG_WIDTH },
-    data: { label: 'terminal', deployedVersion: versions.get('fzt-terminal')?.version, badge: 'go module' },
+    data: { label: 'fzt-terminal', deployedVersion: versions.get('fzt-terminal')?.version, badge: 'go module' },
   })
 
   // Edge fzt-frontend.out → fzt-terminal.in
@@ -292,7 +292,7 @@ function buildLayout(
         position: { x: PKG_INSET, y: termPrvY },
         style: { width: PKG_WIDTH },
         data: {
-          label: 'release',
+          label: id,
           deployedVersion: versions.get(id)?.version,
           badge: 'release',
         },
