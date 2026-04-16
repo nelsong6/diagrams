@@ -1,18 +1,9 @@
-import type { RepoPosition, DispatchEdge } from '../components/CIView'
-
-const W = 260
-const H = 160
+import type { DispatchEdge } from '../components/CIView'
 
 // ── fzt view ────────────────────────────────────────────────
 // fzt engine → fzt-terminal → consumers (homepage, showcase, picker)
 
-export const fztLayout: RepoPosition[] = [
-  { id: 'fzt', x: W, y: 0 },
-  { id: 'fzt-terminal', x: W, y: H },
-  { id: 'my-homepage', x: 0, y: H * 2 },
-  { id: 'fzt-showcase', x: W, y: H * 2 },
-  { id: 'picker', x: W * 2, y: H * 2 },
-]
+export const fztRepos = ['fzt', 'fzt-terminal', 'my-homepage', 'fzt-showcase', 'picker']
 
 export const fztEdges: DispatchEdge[] = [
   ['fzt', 'fzt-terminal'],
@@ -23,60 +14,39 @@ export const fztEdges: DispatchEdge[] = [
 // ── api view ────────────────────────────────────────────────
 // App repos publish route packages → dispatch → api rebuilds
 
-export const apiLayout: RepoPosition[] = [
-  { id: 'my-homepage', x: 0, y: 0 },
-  { id: 'fzt-terminal', x: W, y: 0 },
-  { id: 'infra-diagram', x: W * 2, y: 0 },
-  { id: 'kill-me', x: 0, y: H },
-  { id: 'plant-agent', x: W, y: H },
-  { id: 'investing', x: W * 2, y: H },
-  { id: 'house-hunt', x: W * 3, y: H },
-  { id: 'api', x: W * 1.5, y: H * 2 },
+export const apiRepos = [
+  'my-homepage', 'fzt-terminal', 'infra-diagram',
+  'kill-me', 'plant-agent', 'investing', 'house-hunt',
+  'api',
 ]
 
 export const apiEdges: DispatchEdge[] = [
-  // Top row → api: route via right/left handles to avoid middle row
-  ['my-homepage', 'api', 'right-src', 'left-tgt'],
-  ['fzt-terminal', 'api', 'bottom-src', 'top-tgt'],
-  ['infra-diagram', 'api', 'left-src', 'right-tgt'],
-  // Middle row → api: straight down, no obstacles
-  ['kill-me', 'api', 'bottom-src', 'top-tgt'],
-  ['plant-agent', 'api', 'bottom-src', 'top-tgt'],
-  ['investing', 'api', 'bottom-src', 'top-tgt'],
-  ['house-hunt', 'api', 'bottom-src', 'top-tgt'],
+  ['my-homepage', 'api'],
+  ['fzt-terminal', 'api'],
+  ['infra-diagram', 'api'],
+  ['kill-me', 'api'],
+  ['plant-agent', 'api'],
+  ['investing', 'api'],
+  ['house-hunt', 'api'],
 ]
 
 // ── tofu view ───────────────────────────────────────────────
 // Infrastructure repos with tofu/ directories
 
-export const tofuLayout: RepoPosition[] = [
-  { id: 'infra-bootstrap', x: W, y: 0 },
-  { id: 'api', x: 0, y: H },
-  { id: 'infra-diagram', x: W, y: H },
-  { id: 'house-hunt', x: W * 2, y: H },
-  { id: 'landing-page', x: 0, y: H * 2 },
-  { id: 'emotions-mcp', x: W, y: H * 2 },
+export const tofuRepos = [
+  'infra-bootstrap', 'api', 'infra-diagram',
+  'house-hunt', 'landing-page', 'emotions-mcp',
 ]
 
 export const tofuEdges: DispatchEdge[] = []
 
 // ── overview (all repos) ────────────────────────────────────
 
-export const overviewLayout: RepoPosition[] = [
-  { id: 'fzt', x: W * 1.5, y: 0 },
-  { id: 'fzt-terminal', x: W * 1.5, y: H },
-  { id: 'my-homepage', x: 0, y: H * 2 },
-  { id: 'fzt-showcase', x: W * 1.5, y: H * 2 },
-  { id: 'infra-diagram', x: W * 3, y: H * 2 },
-  { id: 'kill-me', x: 0, y: H * 3 },
-  { id: 'plant-agent', x: W, y: H * 3 },
-  { id: 'investing', x: W * 2, y: H * 3 },
-  { id: 'house-hunt', x: W * 3, y: H * 3 },
-  { id: 'api', x: W * 1.5, y: H * 4 },
-  { id: 'infra-bootstrap', x: 0, y: H * 5.5 },
-  { id: 'picker', x: W, y: H * 5.5 },
-  { id: 'landing-page', x: W * 2, y: H * 5.5 },
-  { id: 'emotions-mcp', x: W * 3, y: H * 5.5 },
+export const overviewRepos = [
+  'fzt', 'fzt-terminal', 'my-homepage', 'fzt-showcase',
+  'kill-me', 'plant-agent', 'investing', 'house-hunt',
+  'infra-diagram', 'api',
+  'infra-bootstrap', 'picker', 'landing-page', 'emotions-mcp',
 ]
 
 export const overviewEdges: DispatchEdge[] = [

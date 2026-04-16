@@ -9,37 +9,36 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useSSE } from '../hooks/useSSE'
+import { useELKLayout } from '../hooks/useELKLayout'
 import CIPipelineNodeComponent, { type CINodeData } from './CIPipelineNode'
 import type { CIRun, ConnectionStatus } from '../types/ci'
 
 const nodeTypes = { ci: CIPipelineNodeComponent }
 
-export type RepoPosition = { id: string; x: number; y: number }
-// [source, target] or [source, target, sourceHandle, targetHandle]
-export type DispatchEdge = [string, string] | [string, string, string, string]
+// [source, target]
+export type DispatchEdge = [string, string]
 
 interface CIViewProps {
   title: string
-  layout: RepoPosition[]
+  repos: string[]
   edges: DispatchEdge[]
 }
 
-function buildNodes(layout: RepoPosition[], runsByRepo: Map<string, CIRun[]>): Node[] {
-  return layout.map((repo) => ({
-    id: repo.id,
+function buildInputNodes(repos: string[], runsByRepo: Map<string, CIRun[]>): Node[] {
+  return repos.map((id) => ({
+    id,
     type: 'ci',
-    position: { x: repo.x, y: repo.y },
+    position: { x: 0, y: 0 }, // ELK will override
     data: {
-      label: repo.id,
-      repoName: repo.id,
-      runs: runsByRepo.get(repo.id) || [],
+      label: id,
+      repoName: id,
+      runs: runsByRepo.get(id) || [],
     } satisfies CINodeData,
   }))
 }
 
-function buildEdges(chains: DispatchEdge[], runsByRepo: Map<string, CIRun[]>): Edge[] {
-  return chains.map((edge) => {
-    const [src, dst, srcHandle, tgtHandle] = edge
+function buildInputEdges(chains: DispatchEdge[], runsByRepo: Map<string, CIRun[]>): Edge[] {
+  return chains.map(([src, dst]) => {
     const srcRuns = runsByRepo.get(src) || []
     const dstRuns = runsByRepo.get(dst) || []
     const srcActive = srcRuns.some(r => r.status === 'in_progress' || r.status === 'queued')
@@ -50,8 +49,6 @@ function buildEdges(chains: DispatchEdge[], runsByRepo: Map<string, CIRun[]>): E
       id: `${src}->${dst}`,
       source: src,
       target: dst,
-      sourceHandle: srcHandle || 'bottom-src',
-      targetHandle: tgtHandle || 'top-tgt',
       type: 'smoothstep',
       animated: cascading,
       style: {
@@ -76,7 +73,7 @@ function StatusDot({ status }: { status: ConnectionStatus }) {
   )
 }
 
-export default function CIView({ title, layout, edges: edgeDefs }: CIViewProps) {
+export default function CIView({ title, repos, edges: edgeDefs }: CIViewProps) {
   const [watching, setWatching] = useState(true)
   const { runs, status } = useSSE(watching)
 
@@ -89,8 +86,10 @@ export default function CIView({ title, layout, edges: edgeDefs }: CIViewProps) 
     return map
   }, [runs])
 
-  const nodes = useMemo(() => buildNodes(layout, runsByRepo), [layout, runsByRepo])
-  const edges = useMemo(() => buildEdges(edgeDefs, runsByRepo), [edgeDefs, runsByRepo])
+  const inputNodes = useMemo(() => buildInputNodes(repos, runsByRepo), [repos, runsByRepo])
+  const inputEdges = useMemo(() => buildInputEdges(edgeDefs, runsByRepo), [edgeDefs, runsByRepo])
+
+  const { nodes, edges, layoutReady } = useELKLayout(inputNodes, inputEdges)
 
   const hasActiveRuns = useMemo(() => {
     for (const run of runs.values()) {
@@ -155,21 +154,23 @@ export default function CIView({ title, layout, edges: edgeDefs }: CIViewProps) 
         </span>
       </div>
 
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.3 }}
-        minZoom={0.3}
-        maxZoom={2}
-        defaultEdgeOptions={{ type: 'smoothstep' }}
-        nodesDraggable={false}
-        nodesConnectable={false}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1e293b" />
-        <Controls className="!bg-slate-800 !border-slate-700 !rounded-lg [&>button]:!bg-slate-800 [&>button]:!border-slate-700 [&>button]:!text-slate-400 [&>button:hover]:!bg-slate-700" />
-      </ReactFlow>
+      {layoutReady && (
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.3 }}
+          minZoom={0.3}
+          maxZoom={2}
+          defaultEdgeOptions={{ type: 'smoothstep' }}
+          nodesDraggable={false}
+          nodesConnectable={false}
+        >
+          <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1e293b" />
+          <Controls className="!bg-slate-800 !border-slate-700 !rounded-lg [&>button]:!bg-slate-800 [&>button]:!border-slate-700 [&>button]:!text-slate-400 [&>button:hover]:!bg-slate-700" />
+        </ReactFlow>
+      )}
     </div>
   )
 }
