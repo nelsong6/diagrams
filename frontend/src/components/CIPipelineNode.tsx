@@ -37,12 +37,15 @@ const STATUS_COLORS = {
 function getNodeStatus(runs: CIRun[]): keyof typeof STATUS_COLORS {
   if (runs.length === 0) return 'idle'
 
-  // Priority: in_progress > queued > failure > success > cancelled
+  // Active statuses from any run take priority
   if (runs.some(r => r.status === 'in_progress')) return 'in_progress'
   if (runs.some(r => r.status === 'queued')) return 'queued'
-  if (runs.some(r => r.conclusion === 'failure')) return 'failure'
-  if (runs.some(r => r.conclusion === 'success')) return 'success'
-  if (runs.some(r => r.conclusion === 'cancelled')) return 'cancelled'
+
+  // Conclusion comes from the latest run only
+  const latest = runs.reduce((a, b) => new Date(a.updatedAt) > new Date(b.updatedAt) ? a : b)
+  if (latest.conclusion === 'failure') return 'failure'
+  if (latest.conclusion === 'success') return 'success'
+  if (latest.conclusion === 'cancelled') return 'cancelled'
   return 'idle'
 }
 
