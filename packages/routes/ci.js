@@ -8,22 +8,48 @@ const REPOS = [
   'landing-page', 'emotions-mcp',
 ];
 
+// Sites that serve a /version.json for deployed version backfill
+const SITE_URLS = {
+  'my-homepage': 'https://homepage.romaine.life',
+  'fzt-showcase': 'https://fzh.romaine.life',
+  'kill-me': 'https://workout.romaine.life',
+  'plant-agent': 'https://plants.romaine.life',
+  'infra-diagram': 'https://docs.romaine.life',
+  'landing-page': 'https://romaine.life',
+  'house-hunt': 'https://househunt.romaine.life',
+  'investing': 'https://investing.romaine.life',
+};
+
 /**
  * CI Dashboard routes — webhook receiver + SSE broadcaster + version tracking.
  *
  * @param {object} opts
  * @param {string} opts.webhookSecret - GitHub webhook HMAC signing secret
  * @param {string} opts.githubToken - GitHub PAT for backfilling runs on cold start
+ * @param {Record<string, string>} [opts.installedPackages] - route package versions from the host's package-lock
  */
-export function createCIRoutes({ webhookSecret, githubToken }) {
+export function createCIRoutes({ webhookSecret, githubToken, installedPackages }) {
   const router = Router();
 
   // In-memory state
   const runs = new Map();              // key: `${repo}/${runId}` → pipeline run
   const versions = new Map();          // key: repoName → latest published version
   const deployedVersions = new Map();  // key: repoName → deployed version info
+  const versionErrors = new Map();    // key: repoName → error string
   const sseClients = new Set();
   let backfillPromise = null;
+  let versionBackfillPromise = null;
+
+  // Pre-populate deployed versions from host's package-lock (survives API restart)
+  if (installedPackages && Object.keys(installedPackages).length > 0) {
+    deployedVersions.set('api', {
+      site: 'api.romaine.life',
+      repo: 'api',
+      versions: installedPackages,
+      reportedAt: new Date().toISOString(),
+    });
+    console.log(`[ci] Pre-populated API deployed versions: ${Object.keys(installedPackages).length} packages`);
+  }
 
   function broadcast(event, data) {
     const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -99,6 +125,76 @@ export function createCIRoutes({ webhookSecret, githubToken }) {
     })();
 
     return backfillPromise;
+  }
+
+  // ── Backfill versions (releases + site version.json) ──────────
+
+  async function backfillVersions() {
+    if (versionBackfillPromise) return versionBackfillPromise;
+    if (!githubToken) return;
+
+    versionBackfillPromise = (async () => {
+      const headers = {
+        Authorization: `token ${githubToken}`,
+        Accept: 'application/vnd.github+json',
+      };
+
+      // Fetch latest release for each repo
+      const releaseFetches = REPOS.map(async (repo) => {
+        try {
+          const res = await fetch(
+            `https://api.github.com/repos/nelsong6/${repo}/releases/latest`,
+            { headers },
+          );
+          if (res.status === 404) return; // no releases — expected
+          if (!res.ok) {
+            const msg = `Release fetch HTTP ${res.status}`;
+            console.error(`[ci] ${msg} for ${repo}`);
+            versionErrors.set(repo, msg);
+            return;
+          }
+          const rel = await res.json();
+          versions.set(repo, {
+            repo: `nelsong6/${repo}`,
+            repoName: repo,
+            version: rel.tag_name,
+            publishedAt: rel.published_at,
+            htmlUrl: rel.html_url,
+          });
+        } catch (err) {
+          console.error(`[ci] Release backfill failed for ${repo}:`, err.message);
+          versionErrors.set(repo, err.message);
+        }
+      });
+
+      // Fetch version.json from each site
+      const siteFetches = Object.entries(SITE_URLS).map(async ([repo, siteUrl]) => {
+        try {
+          const res = await fetch(`${siteUrl}/version.json`);
+          if (!res.ok) {
+            const msg = `version.json HTTP ${res.status}`;
+            console.error(`[ci] ${msg} for ${repo} (${siteUrl})`);
+            versionErrors.set(repo, msg);
+            return;
+          }
+          const data = await res.json();
+          deployedVersions.set(repo, {
+            site: siteUrl.replace('https://', ''),
+            repo,
+            versions: data,
+            reportedAt: data.deployedAt || new Date().toISOString(),
+          });
+        } catch (err) {
+          console.error(`[ci] version.json backfill failed for ${repo} (${siteUrl}):`, err.message);
+          versionErrors.set(repo, err.message);
+        }
+      });
+
+      await Promise.all([...releaseFetches, ...siteFetches]);
+      console.log(`[ci] Backfilled ${versions.size} published versions, ${deployedVersions.size} deployed versions`);
+    })();
+
+    return versionBackfillPromise;
   }
 
   // ── Webhook receiver ──────────────────────────────────────────
@@ -195,7 +291,7 @@ export function createCIRoutes({ webhookSecret, githubToken }) {
 
   router.get('/events', async (req, res) => {
     // Backfill on first connection
-    await backfillFromGitHub();
+    await Promise.all([backfillFromGitHub(), backfillVersions()]);
 
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -207,6 +303,7 @@ export function createCIRoutes({ webhookSecret, githubToken }) {
       runs: Array.from(runs.values()),
       versions: Array.from(versions.values()),
       deployed: Array.from(deployedVersions.values()),
+      versionErrors: Object.fromEntries(versionErrors),
     };
     res.write(`event: init\ndata: ${JSON.stringify(snapshot)}\n\n`);
 

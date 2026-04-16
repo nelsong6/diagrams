@@ -12,7 +12,7 @@ import { useSSE } from '../hooks/useSSE'
 import CIPipelineNodeComponent, { type CINodeData, estimateNodeHeight } from './CIPipelineNode'
 import CIContainerNodeComponent from './CIContainerNode'
 import CIPackageNodeComponent from './CIPackageNode'
-import type { CIRun, PublishedVersion, DeployedVersion, ConnectionStatus } from '../types/ci'
+import type { CIRun, PublishedVersion, DeployedVersion, VersionErrors, ConnectionStatus } from '../types/ci'
 import { apiHostRepos, routePackageMap } from '../data/ci-views'
 
 const nodeTypes = {
@@ -35,6 +35,7 @@ function buildLayout(
   runsByRepo: Map<string, CIRun[]>,
   versions: Map<string, PublishedVersion>,
   deployed: Map<string, DeployedVersion>,
+  versionErrors: VersionErrors,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
   const edges: Edge[] = []
@@ -45,7 +46,8 @@ function buildLayout(
     const runs = runsByRepo.get(repo) || []
     const pub = versions.get(repo)
     const dep = deployed.get(repo)
-    return estimateNodeHeight(runs, !!(pub || dep))
+    const err = versionErrors[repo]
+    return estimateNodeHeight(runs, !!(pub || dep), !!err)
   })
   const maxHostHeight = Math.max(...hostHeights)
 
@@ -55,6 +57,7 @@ function buildLayout(
     const runs = runsByRepo.get(repo) || []
     const pub = versions.get(repo)
     const dep = deployed.get(repo)
+    const err = versionErrors[repo]
     nodes.push({
       id: repo,
       type: 'ci',
@@ -67,6 +70,7 @@ function buildLayout(
         nodeHeight: hostHeights[i],
         publishedVersion: pub,
         deployedVersion: dep,
+        versionError: err,
       } satisfies CINodeData,
     })
   }
@@ -161,7 +165,7 @@ function StatusDot({ status }: { status: ConnectionStatus }) {
 export default function CIApiContainerView() {
   const title = 'CI — api'
   const [watching, setWatching] = useState(true)
-  const { runs, versions, deployed, status } = useSSE(watching)
+  const { runs, versions, deployed, versionErrors, status } = useSSE(watching)
 
   const runsByRepo = useMemo(() => {
     const map = new Map<string, CIRun[]>()
@@ -173,8 +177,8 @@ export default function CIApiContainerView() {
   }, [runs])
 
   const { nodes, edges } = useMemo(
-    () => buildLayout(apiHostRepos, runsByRepo, versions, deployed),
-    [runsByRepo, versions, deployed],
+    () => buildLayout(apiHostRepos, runsByRepo, versions, deployed, versionErrors),
+    [runsByRepo, versions, deployed, versionErrors],
   )
 
   const hasActiveRuns = useMemo(() => {

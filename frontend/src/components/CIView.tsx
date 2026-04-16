@@ -12,7 +12,7 @@ import { useSSE } from '../hooks/useSSE'
 import { useELKLayout } from '../hooks/useELKLayout'
 import CIPipelineNodeComponent, { type CINodeData, estimateNodeHeight } from './CIPipelineNode'
 import ELKEdgeComponent from './ELKEdge'
-import type { CIRun, PublishedVersion, DeployedVersion, ConnectionStatus } from '../types/ci'
+import type { CIRun, PublishedVersion, DeployedVersion, VersionErrors, ConnectionStatus } from '../types/ci'
 
 const nodeTypes = { ci: CIPipelineNodeComponent }
 const edgeTypes = { elk: ELKEdgeComponent }
@@ -31,11 +31,13 @@ function buildInputNodes(
   runsByRepo: Map<string, CIRun[]>,
   versions: Map<string, PublishedVersion>,
   deployed: Map<string, DeployedVersion>,
+  versionErrors: VersionErrors,
 ): Node[] {
   return repos.map((id) => {
     const runs = runsByRepo.get(id) || []
     const pub = versions.get(id)
     const dep = deployed.get(id)
+    const err = versionErrors[id]
     const hasVersion = !!(pub || dep)
     return {
       id,
@@ -45,9 +47,10 @@ function buildInputNodes(
         label: id,
         repoName: id,
         runs,
-        nodeHeight: estimateNodeHeight(runs, hasVersion),
+        nodeHeight: estimateNodeHeight(runs, hasVersion, !!err),
         publishedVersion: pub,
         deployedVersion: dep,
+        versionError: err,
       } satisfies CINodeData,
     }
   })
@@ -90,7 +93,7 @@ function StatusDot({ status }: { status: ConnectionStatus }) {
 
 export default function CIView({ title, repos, edges: edgeDefs }: CIViewProps) {
   const [watching, setWatching] = useState(true)
-  const { runs, versions, deployed, status } = useSSE(watching)
+  const { runs, versions, deployed, versionErrors, status } = useSSE(watching)
 
   const runsByRepo = useMemo(() => {
     const map = new Map<string, CIRun[]>()
@@ -101,7 +104,7 @@ export default function CIView({ title, repos, edges: edgeDefs }: CIViewProps) {
     return map
   }, [runs])
 
-  const inputNodes = useMemo(() => buildInputNodes(repos, runsByRepo, versions, deployed), [repos, runsByRepo, versions, deployed])
+  const inputNodes = useMemo(() => buildInputNodes(repos, runsByRepo, versions, deployed, versionErrors), [repos, runsByRepo, versions, deployed, versionErrors])
   const inputEdges = useMemo(() => buildInputEdges(edgeDefs, runsByRepo), [edgeDefs, runsByRepo])
 
   const { nodes, edges, layoutReady } = useELKLayout(inputNodes, inputEdges)
@@ -176,7 +179,7 @@ export default function CIView({ title, repos, edges: edgeDefs }: CIViewProps) {
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
-          fitViewOptions={{ padding: 0.3, maxZoom: 1 }}
+          fitViewOptions={{ padding: 0.2, maxZoom: 0.75 }}
           minZoom={0.3}
           maxZoom={1.5}
           defaultEdgeOptions={{ type: 'elk' }}

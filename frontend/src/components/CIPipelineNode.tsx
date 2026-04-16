@@ -9,6 +9,7 @@ export interface CINodeData {
   nodeHeight: number
   publishedVersion?: PublishedVersion
   deployedVersion?: DeployedVersion
+  versionError?: string
 }
 
 // Estimate node height based on content
@@ -17,11 +18,11 @@ const HEIGHT_WITH_RUN = 106     // label + workflow + commit + status + padding 
 const HEIGHT_WITH_MORE = 123    // above + "+N more"
 const HEIGHT_VERSION_LINE = 16  // version tag line
 
-export function estimateNodeHeight(runs: CIRun[], hasVersion: boolean): number {
+export function estimateNodeHeight(runs: CIRun[], hasVersion: boolean, hasError: boolean): number {
   let h = HEIGHT_EMPTY
   if (runs.length > 1) h = HEIGHT_WITH_MORE
   else if (runs.length === 1) h = HEIGHT_WITH_RUN
-  if (hasVersion) h += HEIGHT_VERSION_LINE
+  if (hasVersion || hasError) h += HEIGHT_VERSION_LINE
   return h
 }
 
@@ -126,12 +127,17 @@ function CIPipelineNodeComponent({ data }: NodeProps) {
           </div>
         )}
 
-        {(d.publishedVersion || d.deployedVersion) && (
+        {(d.publishedVersion || d.deployedVersion || d.versionError) && (
           <div className="text-[9px] mt-1.5 pt-1 border-t border-slate-700/50">
-            {d.publishedVersion && (
+            {d.versionError && (
+              <span className="text-red-400 font-mono" title={d.versionError}>
+                version error
+              </span>
+            )}
+            {!d.versionError && d.publishedVersion && (
               <span className="text-purple-400 font-mono">{d.publishedVersion.version}</span>
             )}
-            {d.deployedVersion?.versions?.fztTerminal && (
+            {!d.versionError && d.deployedVersion?.versions?.fztTerminal && (
               <span className="text-cyan-400 font-mono ml-1">
                 using {d.deployedVersion.versions.fztTerminal}
               </span>

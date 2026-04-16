@@ -32,4 +32,6 @@ export interface DeployedVersion {
   reportedAt: string
 }
 
+export type VersionErrors = Record<string, string>
+
 export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting'

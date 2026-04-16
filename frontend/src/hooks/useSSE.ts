@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import type { CIRun, PublishedVersion, DeployedVersion, ConnectionStatus } from '../types/ci'
+import type { CIRun, PublishedVersion, DeployedVersion, VersionErrors, ConnectionStatus } from '../types/ci'
 
 const API_BASE = import.meta.env.DEV
   ? 'http://localhost:3000'
@@ -11,6 +11,7 @@ export function useSSE(enabled: boolean) {
   const [runs, setRuns] = useState<Map<string, CIRun>>(new Map())
   const [versions, setVersions] = useState<Map<string, PublishedVersion>>(new Map())
   const [deployed, setDeployed] = useState<Map<string, DeployedVersion>>(new Map())
+  const [versionErrors, setVersionErrors] = useState<VersionErrors>({})
   const [status, setStatus] = useState<ConnectionStatus>('disconnected')
   const esRef = useRef<EventSource | null>(null)
   const retryRef = useRef(0)
@@ -43,6 +44,8 @@ export function useSSE(enabled: boolean) {
         depMap.set(d.repo, d)
       }
       setDeployed(depMap)
+
+      setVersionErrors(snapshot.versionErrors || {})
 
       setStatus('connected')
       retryRef.current = 0
@@ -108,5 +111,5 @@ export function useSSE(enabled: boolean) {
     return disconnect
   }, [enabled, connect, disconnect])
 
-  return { runs, versions, deployed, status, disconnect }
+  return { runs, versions, deployed, versionErrors, status, disconnect }
 }
