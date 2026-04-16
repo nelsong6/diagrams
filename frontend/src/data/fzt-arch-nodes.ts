@@ -154,7 +154,7 @@ export const fztArchNodes: FztArchNode[] = [
     },
   },
   {
-    id: 'picker',
+    id: 'fzt-picker',
     type: 'fzt-arch',
     position: { x: COL.ext + 700, y: ROW.ext },
     data: {

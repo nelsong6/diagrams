@@ -83,7 +83,7 @@ function buildLayout(
     extent: 'parent' as const,
     position: { x: PKG_INSET, y: fztPkgY },
     style: { width: PKG_WIDTH },
-    data: { label: 'engine', deployedVersion: versions.get('fzt')?.version },
+    data: { label: 'engine', deployedVersion: versions.get('fzt')?.version, badge: 'go module' },
   })
 
   // ── fzt-terminal (middle — consumes fzt engine, publishes releases) ──
@@ -116,7 +116,7 @@ function buildLayout(
     extent: 'parent' as const,
     position: { x: PKG_INSET, y: CASCADE_PKG_PADDING },
     style: { width: PKG_WIDTH },
-    data: { label: 'fzt', deployedVersion: fztTermDeployed?.versions?.fzt },
+    data: { label: 'fzt', deployedVersion: fztTermDeployed?.versions?.fzt, badge: 'go module' },
   })
 
   // fzt-terminal provided package: "release"

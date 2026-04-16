@@ -37,7 +37,7 @@ tofu/             OpenTofu IaC — SWA (Free), DNS CNAME (diagrams.romaine.life)
 - **`/:app`** — Filtered view highlighting a single app's path through infrastructure
 - **`/pipelines`** — Pipeline dependency diagram showing cross-repo CI/CD chains (fzt → my-homepage/fzt-showcase → api) with the dispatch/artifact flow and the lockfile gap issue node
 - **`/ci`** — Live CI dashboard (all repos). Push-based via GitHub App webhooks + SSE
-- **`/ci/fzt`** — fzt asset cascade: fzt → fzt-terminal → my-homepage, fzt-showcase, picker
+- **`/ci/fzt`** — fzt asset cascade: fzt → fzt-terminal → my-homepage, fzt-showcase, fzt-picker
 - **`/ci/api`** — Route dispatch chain: host repos at top, API container box below with route package boxes inside. Manual layout (no ELK). Shows version comparison between published and deployed package versions.
 - **`/ci/tofu`** — Infrastructure repos: infra-bootstrap, api, diagrams, house-hunt, landing-page, emotions-mcp
 
@@ -75,7 +75,7 @@ Both use shared Promises to prevent concurrent SSE connections from racing. The 
 
 ### Monitored repos
 
-`fzt`, `fzt-terminal`, `my-homepage`, `fzt-showcase`, `kill-me`, `plant-agent`, `investing`, `house-hunt`, `diagrams`, `api`, `infra-bootstrap`, `picker`, `landing-page`, `emotions-mcp`.
+`fzt`, `fzt-terminal`, `my-homepage`, `fzt-showcase`, `kill-me`, `plant-agent`, `investing`, `house-hunt`, `diagrams`, `api`, `infra-bootstrap`, `fzt-picker`, `landing-page`, `emotions-mcp`.
 
 ## Navigation
 

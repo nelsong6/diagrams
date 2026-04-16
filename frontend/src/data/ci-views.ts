@@ -37,7 +37,7 @@ export const overviewRepos = [
   'fzt', 'fzt-terminal', 'my-homepage', 'fzt-showcase',
   'kill-me', 'plant-agent', 'investing', 'house-hunt',
   'diagrams', 'api',
-  'infra-bootstrap', 'picker', 'landing-page', 'emotions-mcp',
+  'infra-bootstrap', 'fzt-picker', 'landing-page', 'emotions-mcp',
 ]
 
 export const overviewEdges: DispatchEdge[] = [

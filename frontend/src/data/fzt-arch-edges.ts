@@ -109,8 +109,8 @@ export const fztArchEdges: Edge[] = [
     labelStyle: { fill: '#94a3b8', fontSize: 9 },
   },
   {
-    id: 'picker-cli',
-    source: 'picker',
+    id: 'fzt-picker-cli',
+    source: 'fzt-picker',
     target: 'cmd-cli',
     style: CONSUMES,
     label: 'fzt --dir',
