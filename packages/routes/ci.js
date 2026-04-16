@@ -4,9 +4,20 @@ import { createHmac, createSign, timingSafeEqual } from 'node:crypto';
 const REPOS = [
   'fzt', 'fzt-terminal', 'my-homepage', 'fzt-showcase',
   'kill-me', 'plant-agent', 'investing', 'house-hunt',
-  'infra-diagram', 'api', 'infra-bootstrap', 'picker',
+  'infra-diagram', 'api', 'infra-bootstrap', 'fzt-picker',
   'landing-page', 'emotions-mcp',
 ];
+
+// Go dependencies to extract from go.mod on release events
+const GO_DEPS = {
+  'fzt-terminal': [
+    { module: 'github.com/nelsong6/fzt', field: 'fzt' },
+  ],
+  'fzt-picker': [
+    { module: 'github.com/nelsong6/fzt', field: 'fzt' },
+    { module: 'github.com/nelsong6/fzt-terminal', field: 'fztTerminal' },
+  ],
+};
 
 // Repos that publish route packages to GitHub Packages
 const ROUTE_PACKAGES = {
@@ -22,7 +33,7 @@ const ROUTE_PACKAGES = {
 // Sites that serve a /version.json for deployed version backfill
 const SITE_URLS = {
   'my-homepage': 'https://homepage.romaine.life',
-  'fzt-showcase': 'https://fzh.romaine.life',
+  'fzt-showcase': 'https://fzt.romaine.life',
   'kill-me': 'https://workout.romaine.life',
   'plant-agent': 'https://plants.romaine.life',
   'infra-diagram': 'https://docs.romaine.life',
@@ -102,6 +113,46 @@ export function createCIRoutes({ webhookSecret, githubAppId, githubAppPrivateKey
     const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     for (const client of sseClients) {
       client.write(msg);
+    }
+  }
+
+  async function extractGoModVersions(repoName, tag, deps) {
+    const token = await getGitHubToken();
+    if (!token) return;
+    const res = await fetch(
+      `https://api.github.com/repos/nelsong6/${repoName}/contents/go.mod?ref=${tag}`,
+      { headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' } },
+    );
+    if (!res.ok) {
+      // Picker has go.mod in frontend/ subdirectory
+      const altRes = await fetch(
+        `https://api.github.com/repos/nelsong6/${repoName}/contents/frontend/go.mod?ref=${tag}`,
+        { headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' } },
+      );
+      if (!altRes.ok) return;
+      const altData = await altRes.json();
+      return parseGoMod(repoName, Buffer.from(altData.content, 'base64').toString(), deps);
+    }
+    const data = await res.json();
+    parseGoMod(repoName, Buffer.from(data.content, 'base64').toString(), deps);
+  }
+
+  function parseGoMod(repoName, content, deps) {
+    const extracted = {};
+    for (const { module, field } of deps) {
+      const match = content.match(new RegExp(`${module.replace(/\//g, '\\/')}\\s+(v[\\w.\\-+]+)`));
+      if (match) extracted[field] = match[1];
+    }
+    if (Object.keys(extracted).length > 0) {
+      const deployed = {
+        site: `github.com/nelsong6/${repoName}`,
+        repo: repoName,
+        versions: extracted,
+        reportedAt: new Date().toISOString(),
+      };
+      deployedVersions.set(repoName, deployed);
+      broadcast('deployed', deployed);
+      console.log(`[ci] Extracted go.mod deps for ${repoName}:`, extracted);
     }
   }
 
@@ -329,6 +380,15 @@ export function createCIRoutes({ webhookSecret, githubAppId, githubAppPrivateKey
         };
         versions.set(repository.name, version);
         broadcast('version', version);
+
+        // Extract consumed Go dependencies from go.mod at the release tag
+        const deps = GO_DEPS[repository.name];
+        if (deps) {
+          extractGoModVersions(repository.name, release.tag_name, deps).catch(err =>
+            console.error(`[ci] go.mod extraction failed for ${repository.name}:`, err.message)
+          );
+        }
+
         return res.status(200).json({ received: true, type: 'release', version: release.tag_name });
       }
       return res.status(200).json({ ignored: true, event, action });

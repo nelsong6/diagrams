@@ -18,7 +18,11 @@ const NODE_WIDTH = 240
 const NODE_SPACING = 40
 const ROW_GAP = 60
 
-const CONSUMER_REPOS = ['my-homepage', 'fzt-showcase', 'picker'] as const
+const CONSUMER_REPOS = [
+  { id: 'my-homepage', label: 'my-homepage' },
+  { id: 'fzt-showcase', label: 'fzt-showcase' },
+  { id: 'fzt-picker', label: 'picker' },
+] as const
 
 function buildLayout(
   runsByRepo: Map<string, CIRun[]>,
@@ -92,19 +96,19 @@ function buildLayout(
   const consumerY = fztTermY + fztTermNodeHeight + ROW_GAP
 
   for (let i = 0; i < consumerCount; i++) {
-    const repo = CONSUMER_REPOS[i]
-    const runs = runsByRepo.get(repo) || []
-    const dep = deployed.get(repo)
+    const { id: repoId, label: repoLabel } = CONSUMER_REPOS[i]
+    const runs = runsByRepo.get(repoId) || []
+    const dep = deployed.get(repoId)
     const consumedVersion = dep?.versions?.fztTerminal
     const containerX = i * (NODE_WIDTH + NODE_SPACING)
 
     nodes.push({
-      id: repo,
+      id: repoId,
       type: 'cascade',
       position: { x: containerX, y: consumerY },
       style: { width: NODE_WIDTH },
       data: {
-        label: repo,
+        label: repoLabel,
         runs,
         consumed: { label: 'fzt-terminal', version: consumedVersion },
       } satisfies CICascadeData,
@@ -115,10 +119,10 @@ function buildLayout(
     const cascading = fztTermActive || consumerActive
 
     edges.push({
-      id: `fzt-terminal->${repo}`,
+      id: `fzt-terminal->${repoId}`,
       source: 'fzt-terminal',
       sourceHandle: 'provided-src',
-      target: repo,
+      target: repoId,
       targetHandle: 'consumed-tgt',
       type: 'straight',
       animated: cascading,
