@@ -70,7 +70,7 @@ export function createCIRoutes({ webhookSecret }) {
         return res.status(400).json({ error: 'Missing workflow_run payload' });
       }
 
-      if (wr.head_branch?.startsWith('dependabot/')) {
+      if (wr.head_branch?.startsWith('dependabot/') || wr.name?.toLowerCase().includes('dependabot')) {
         return res.status(200).json({ ignored: true, reason: 'dependabot' });
       }
 
