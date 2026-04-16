@@ -139,7 +139,7 @@ function buildLayout(
     sourceHandle: 'bottom-src',
     target: 'pkg-fzt-terminal-in',
     targetHandle: 'top-tgt',
-    type: 'smoothstep',
+    type: 'default',
     animated: fztToTermCascading,
     style: {
       stroke: fztToTermCascading ? '#f59e0b' : '#334155',
@@ -196,7 +196,7 @@ function buildLayout(
       sourceHandle: 'bottom-src',
       target: pkgId,
       targetHandle: 'top-tgt',
-      type: 'smoothstep',
+      type: 'default',
       animated: cascading,
       style: {
         stroke: cascading ? '#f59e0b' : '#334155',
