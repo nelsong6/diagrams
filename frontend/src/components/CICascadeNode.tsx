@@ -71,7 +71,7 @@ function CICascadeNodeComponent({ data }: NodeProps) {
     <div
       className={`rounded-lg border-2 transition-all duration-500 ${
         status === 'in_progress' ? 'animate-pulse' : ''
-      }`}
+      } ${latestRun ? 'cursor-pointer' : ''}`}
       style={{
         width: d.containerWidth,
         height: d.containerHeight,
@@ -79,6 +79,7 @@ function CICascadeNodeComponent({ data }: NodeProps) {
         backgroundColor: bgColor,
         boxShadow: status !== 'idle' && status !== 'cancelled' ? `0 0 8px ${borderColor}44` : 'none',
       }}
+      onClick={() => latestRun && window.open(latestRun.htmlUrl, '_blank')}
     >
       <div className="px-4 py-3" style={{ marginTop: topOffset }}>
         <div className="font-bold text-sm text-slate-200">{d.label}</div>
