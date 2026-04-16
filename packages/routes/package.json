@@ -1,5 +1,5 @@
 {
-  "name": "@nelsong6/infra-diagram-routes",
+  "name": "@nelsong6/diagrams-routes",
   "version": "0.0.1",
   "type": "module",
   "description": "CI dashboard webhook handler and SSE endpoint for the shared API",

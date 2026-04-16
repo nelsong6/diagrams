@@ -4,7 +4,7 @@ import { createHmac, createSign, timingSafeEqual } from 'node:crypto';
 const REPOS = [
   'fzt', 'fzt-terminal', 'my-homepage', 'fzt-showcase',
   'kill-me', 'plant-agent', 'investing', 'house-hunt',
-  'infra-diagram', 'api', 'infra-bootstrap', 'fzt-picker',
+  'diagrams', 'api', 'infra-bootstrap', 'fzt-picker',
   'landing-page', 'emotions-mcp',
 ];
 
@@ -23,7 +23,7 @@ const GO_DEPS = {
 const ROUTE_PACKAGES = {
   'my-homepage': '@nelsong6/my-homepage-routes',
   'fzt-terminal': '@nelsong6/fzt-terminal-routes',
-  'infra-diagram': '@nelsong6/infra-diagram-routes',
+  'diagrams': '@nelsong6/diagrams-routes',
   'kill-me': '@nelsong6/kill-me-routes',
   'plant-agent': '@nelsong6/plant-agent-routes',
   'investing': '@nelsong6/investing-routes',
@@ -36,7 +36,7 @@ const SITE_URLS = {
   'fzt-showcase': 'https://fzt.romaine.life',
   'kill-me': 'https://workout.romaine.life',
   'plant-agent': 'https://plants.romaine.life',
-  'infra-diagram': 'https://docs.romaine.life',
+  'diagrams': 'https://diagrams.romaine.life',
   'landing-page': 'https://romaine.life',
   'house-hunt': 'https://househunt.romaine.life',
   'investing': 'https://investing.romaine.life',

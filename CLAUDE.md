@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## Overview
 
-infra-diagram is an interactive architecture documentation site for Nelson's Azure app ecosystem at romaine.life. It uses React Flow to visualize how all apps connect to shared infrastructure (Cosmos DB, shared API, DNS, Key Vault, etc.) with per-app filtering and clickable annotations.
+diagrams is an interactive architecture documentation site (at `diagrams.romaine.life`) for Nelson's Azure app ecosystem at romaine.life. It uses React Flow to visualize how all apps connect to shared infrastructure (Cosmos DB, shared API, DNS, Key Vault, etc.) with per-app filtering and clickable annotations.
 
 **Read `D:/shell-config/setup/claude/CLAUDE.md` for global Claude config, profile dispatch, skills, and memory rules.**
 
@@ -24,7 +24,7 @@ frontend/src/
   data/           Architecture data (nodes.ts, edges.ts, annotations.ts)
   types.ts        Shared TypeScript types
   index.css       Tailwind v4 + React Flow dark theme overrides
-tofu/             OpenTofu IaC — SWA (Free), DNS CNAME (docs.romaine.life), custom domain
+tofu/             OpenTofu IaC — SWA (Free), DNS CNAME (diagrams.romaine.life), custom domain
 .github/workflows/
   full-stack-deploy.yml   Build + deploy frontend to SWA on push to frontend/
   tofu.yml                Plan on PR, apply on merge to tofu/
@@ -39,13 +39,13 @@ tofu/             OpenTofu IaC — SWA (Free), DNS CNAME (docs.romaine.life), cu
 - **`/ci`** — Live CI dashboard (all repos). Push-based via GitHub App webhooks + SSE
 - **`/ci/fzt`** — fzt asset cascade: fzt → fzt-terminal → my-homepage, fzt-showcase, picker
 - **`/ci/api`** — Route dispatch chain: host repos at top, API container box below with route package boxes inside. Manual layout (no ELK). Shows version comparison between published and deployed package versions.
-- **`/ci/tofu`** — Infrastructure repos: infra-bootstrap, api, infra-diagram, house-hunt, landing-page, emotions-mcp
+- **`/ci/tofu`** — Infrastructure repos: infra-bootstrap, api, diagrams, house-hunt, landing-page, emotions-mcp
 
 CI dashboard uses ELK (elkjs) for automatic node positioning and edge routing. Nodes are bottom-aligned per layer with dynamic heights. Webhook events from the `romaine-life-app` GitHub App flow through `api.romaine.life/ci/webhook` → SSE → browser. Cold start backfills from the GitHub API.
 
 ## Route Package
 
-`packages/routes/` publishes `@nelsong6/infra-diagram-routes` to GitHub Packages. Mounted at `/ci` in the shared API. Entry point: `index.js` re-exports `createCIRoutes({ webhookSecret, githubAppId, githubAppPrivateKey, installedPackages })`.
+`packages/routes/` publishes `@nelsong6/diagrams-routes` to GitHub Packages. Mounted at `/ci` in the shared API. Entry point: `index.js` re-exports `createCIRoutes({ webhookSecret, githubAppId, githubAppPrivateKey, installedPackages })`.
 
 All state is in-memory (lost on API restart). Five Maps: `runs` (pipeline runs keyed by `repo/runId`), `versions` (latest GitHub release per repo), `packageVersions` (latest published route package version per repo), `deployedVersions` (live deployed version per repo), `versionErrors` (backfill failures per repo). Runs older than 2 hours are pruned on each webhook event.
 
@@ -75,7 +75,7 @@ Both use shared Promises to prevent concurrent SSE connections from racing. The 
 
 ### Monitored repos
 
-`fzt`, `fzt-terminal`, `my-homepage`, `fzt-showcase`, `kill-me`, `plant-agent`, `investing`, `house-hunt`, `infra-diagram`, `api`, `infra-bootstrap`, `picker`, `landing-page`, `emotions-mcp`.
+`fzt`, `fzt-terminal`, `my-homepage`, `fzt-showcase`, `kill-me`, `plant-agent`, `investing`, `house-hunt`, `diagrams`, `api`, `infra-bootstrap`, `picker`, `landing-page`, `emotions-mcp`.
 
 ## Navigation
 

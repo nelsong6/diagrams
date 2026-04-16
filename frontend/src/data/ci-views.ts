@@ -7,14 +7,14 @@ export interface DispatchEdge {
 // Host repos that publish route packages to the shared API
 
 export const apiHostRepos = [
-  'my-homepage', 'fzt-terminal', 'infra-diagram',
+  'my-homepage', 'fzt-terminal', 'diagrams',
   'kill-me', 'plant-agent', 'investing', 'house-hunt',
 ]
 
 export const routePackageMap: Record<string, string> = {
   'my-homepage': 'my-homepage-routes',
   'fzt-terminal': 'fzt-terminal-routes',
-  'infra-diagram': 'infra-diagram-routes',
+  'diagrams': 'diagrams-routes',
   'kill-me': 'kill-me-routes',
   'plant-agent': 'plant-agent-routes',
   'investing': 'investing-routes',
@@ -25,7 +25,7 @@ export const routePackageMap: Record<string, string> = {
 // Infrastructure repos with tofu/ directories
 
 export const tofuRepos = [
-  'infra-bootstrap', 'api', 'infra-diagram',
+  'infra-bootstrap', 'api', 'diagrams',
   'house-hunt', 'landing-page', 'emotions-mcp',
 ]
 
@@ -36,7 +36,7 @@ export const tofuEdges: DispatchEdge[] = []
 export const overviewRepos = [
   'fzt', 'fzt-terminal', 'my-homepage', 'fzt-showcase',
   'kill-me', 'plant-agent', 'investing', 'house-hunt',
-  'infra-diagram', 'api',
+  'diagrams', 'api',
   'infra-bootstrap', 'picker', 'landing-page', 'emotions-mcp',
 ]
 
@@ -50,5 +50,5 @@ export const overviewEdges: DispatchEdge[] = [
   { source: 'plant-agent', target: 'api' },
   { source: 'investing', target: 'api' },
   { source: 'house-hunt', target: 'api' },
-  { source: 'infra-diagram', target: 'api' },
+  { source: 'diagrams', target: 'api' },
 ]

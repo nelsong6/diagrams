@@ -1,1 +1,1 @@
-# infra-diagram
+# diagrams
