@@ -165,7 +165,7 @@ function StatusDot({ status }: { status: ConnectionStatus }) {
 export default function CIApiContainerView() {
   const title = 'CI — api'
   const [watching, setWatching] = useState(true)
-  const { runs, versions, deployed, versionErrors, status } = useSSE(watching)
+  const { runs, packageVersions, deployed, versionErrors, status } = useSSE(watching)
 
   const runsByRepo = useMemo(() => {
     const map = new Map<string, CIRun[]>()
@@ -177,8 +177,8 @@ export default function CIApiContainerView() {
   }, [runs])
 
   const { nodes, edges } = useMemo(
-    () => buildLayout(apiHostRepos, runsByRepo, versions, deployed, versionErrors),
-    [runsByRepo, versions, deployed, versionErrors],
+    () => buildLayout(apiHostRepos, runsByRepo, packageVersions, deployed, versionErrors),
+    [runsByRepo, packageVersions, deployed, versionErrors],
   )
 
   const hasActiveRuns = useMemo(() => {

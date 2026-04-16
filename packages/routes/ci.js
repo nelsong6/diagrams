@@ -8,6 +8,17 @@ const REPOS = [
   'landing-page', 'emotions-mcp',
 ];
 
+// Repos that publish route packages to GitHub Packages
+const ROUTE_PACKAGES = {
+  'my-homepage': '@nelsong6/my-homepage-routes',
+  'fzt-terminal': '@nelsong6/fzt-terminal-routes',
+  'infra-diagram': '@nelsong6/infra-diagram-routes',
+  'kill-me': '@nelsong6/kill-me-routes',
+  'plant-agent': '@nelsong6/plant-agent-routes',
+  'investing': '@nelsong6/investing-routes',
+  'house-hunt': '@nelsong6/house-hunt-routes',
+};
+
 // Sites that serve a /version.json for deployed version backfill
 const SITE_URLS = {
   'my-homepage': 'https://homepage.romaine.life',
@@ -33,7 +44,8 @@ export function createCIRoutes({ webhookSecret, githubToken, installedPackages }
 
   // In-memory state
   const runs = new Map();              // key: `${repo}/${runId}` → pipeline run
-  const versions = new Map();          // key: repoName → latest published version
+  const versions = new Map();          // key: repoName → latest published release version
+  const packageVersions = new Map();   // key: repoName → latest published route package version
   const deployedVersions = new Map();  // key: repoName → deployed version info
   const versionErrors = new Map();    // key: repoName → error string
   const sseClients = new Set();
@@ -139,7 +151,35 @@ export function createCIRoutes({ webhookSecret, githubToken, installedPackages }
         Accept: 'application/vnd.github+json',
       };
 
-      // Fetch latest release for each repo
+      // Fetch latest published route package version from GitHub Packages npm registry
+      const packageFetches = Object.entries(ROUTE_PACKAGES).map(async ([repo, pkgName]) => {
+        try {
+          const res = await fetch(`https://npm.pkg.github.com/${pkgName}`, {
+            headers: { Authorization: `token ${githubToken}` },
+          });
+          if (!res.ok) {
+            const msg = `npm registry HTTP ${res.status}`;
+            console.error(`[ci] ${msg} for ${repo} (${pkgName})`);
+            versionErrors.set(repo, msg);
+            return;
+          }
+          const data = await res.json();
+          const latest = data['dist-tags']?.latest;
+          if (!latest) return;
+          packageVersions.set(repo, {
+            repo: `nelsong6/${repo}`,
+            repoName: repo,
+            version: latest,
+            publishedAt: new Date().toISOString(),
+            htmlUrl: `https://github.com/nelsong6/${repo}/packages`,
+          });
+        } catch (err) {
+          console.error(`[ci] Package backfill failed for ${repo} (${pkgName}):`, err.message);
+          versionErrors.set(repo, err.message);
+        }
+      });
+
+      // Fetch latest GitHub release for each repo (404 = no releases, skip)
       const releaseFetches = REPOS.map(async (repo) => {
         try {
           const res = await fetch(
@@ -190,7 +230,7 @@ export function createCIRoutes({ webhookSecret, githubToken, installedPackages }
         }
       });
 
-      await Promise.all([...releaseFetches, ...siteFetches]);
+      await Promise.all([...packageFetches, ...releaseFetches, ...siteFetches]);
       console.log(`[ci] Backfilled ${versions.size} published versions, ${deployedVersions.size} deployed versions`);
     })();
 
@@ -268,6 +308,26 @@ export function createCIRoutes({ webhookSecret, githubToken, installedPackages }
     return res.status(200).json({ ignored: true, event });
   });
 
+  // ── Published report — source repos report their published route package version ──
+
+  router.post('/published', (req, res) => {
+    const { repo, repoName, version } = req.body;
+    if (!repoName || !version) {
+      return res.status(400).json({ error: 'Missing repoName or version' });
+    }
+
+    const published = {
+      repo: repo || `nelsong6/${repoName}`,
+      repoName,
+      version,
+      publishedAt: new Date().toISOString(),
+      htmlUrl: `https://github.com/nelsong6/${repoName}/packages`,
+    };
+    packageVersions.set(repoName, published);
+    broadcast('packageVersion', published);
+    res.status(200).json({ received: true, repoName, version });
+  });
+
   // ── Deploy report — consumer sites report their live versions ──
 
   router.post('/deployed', (req, res) => {
@@ -302,6 +362,7 @@ export function createCIRoutes({ webhookSecret, githubToken, installedPackages }
     const snapshot = {
       runs: Array.from(runs.values()),
       versions: Array.from(versions.values()),
+      packageVersions: Array.from(packageVersions.values()),
       deployed: Array.from(deployedVersions.values()),
       versionErrors: Object.fromEntries(versionErrors),
     };
@@ -330,7 +391,8 @@ export function createCIRoutes({ webhookSecret, githubToken, installedPackages }
 
   router.get('/versions', (req, res) => {
     res.json({
-      published: Array.from(versions.values()),
+      releases: Array.from(versions.values()),
+      packages: Array.from(packageVersions.values()),
       deployed: Array.from(deployedVersions.values()),
     });
   });
