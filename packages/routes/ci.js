@@ -349,10 +349,17 @@ export function createCIRoutes({ webhookSecret, githubAppId, githubAppPrivateKey
       const key = `${run.repo}/${run.runId}`;
       runs.set(key, run);
 
-      // Prune runs older than 2 hours
+      // Prune runs older than 2 hours, but keep the latest run per repo
       const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+      const latestPerRepo = new Map();
       for (const [k, v] of runs) {
-        if (new Date(v.updatedAt).getTime() < cutoff) {
+        const prev = latestPerRepo.get(v.repoName);
+        if (!prev || new Date(v.updatedAt) > new Date(prev.updatedAt)) {
+          latestPerRepo.set(v.repoName, { key: k, updatedAt: v.updatedAt });
+        }
+      }
+      for (const [k, v] of runs) {
+        if (new Date(v.updatedAt).getTime() < cutoff && latestPerRepo.get(v.repoName)?.key !== k) {
           runs.delete(k);
         }
       }
