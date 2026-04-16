@@ -4,7 +4,6 @@ import {
   Background,
   Controls,
   BackgroundVariant,
-  MarkerType,
   type Node,
   type Edge,
 } from '@xyflow/react'
