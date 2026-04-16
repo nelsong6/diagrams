@@ -39,6 +39,7 @@ function containerHeight(hasConsumed: boolean, hasProvided: boolean): number {
   let h = CASCADE_TITLE_HEIGHT
   if (hasConsumed) h += CASCADE_PKG_HEIGHT + CASCADE_PKG_PADDING * 2
   if (hasProvided) h += CASCADE_PKG_HEIGHT + CASCADE_PKG_PADDING * 2
+  if (!hasProvided) h += CASCADE_PKG_PADDING // extra bottom breathing room
   return h
 }
 
