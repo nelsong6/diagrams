@@ -8,13 +8,14 @@ const DEFAULT_OPTIONS: Record<string, string> = {
   'elk.algorithm': 'layered',
   'elk.direction': 'DOWN',
   'elk.layered.spacing.nodeNodeBetweenLayers': '100',
+  'elk.layered.spacing.edgeNodeBetweenLayers': '30',
   'elk.spacing.nodeNode': '40',
   'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
   'elk.edgeRouting': 'ORTHOGONAL',
 }
 
 const NODE_WIDTH = 200
-const NODE_HEIGHT = 100
+const NODE_HEIGHT = 130
 
 // Convert ELK edge sections to an SVG path string
 function elkEdgeToPath(edge: ElkExtendedEdge): string | undefined {
