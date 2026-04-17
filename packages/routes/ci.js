@@ -6,7 +6,7 @@ const REPOS = [
   'my-homepage', 'fzt-showcase', 'fzt-picker',
   'kill-me', 'plant-agent', 'investing', 'house-hunt',
   'diagrams', 'api', 'infra-bootstrap',
-  'landing-page', 'emotions-mcp',
+  'landing-page', 'emotions-mcp', 'llm-explorer',
 ];
 
 // Go dependencies to extract from go.mod on release events
@@ -41,6 +41,7 @@ const ROUTE_PACKAGES = {
   'plant-agent': '@nelsong6/plant-agent-routes',
   'investing': '@nelsong6/investing-routes',
   'house-hunt': '@nelsong6/house-hunt-routes',
+  'llm-explorer': '@nelsong6/llm-explorer-routes',
 };
 
 // Sites that serve a /version.json for deployed version backfill

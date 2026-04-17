@@ -9,6 +9,7 @@ export interface DispatchEdge {
 export const apiHostRepos = [
   'my-homepage', 'fzt-terminal', 'diagrams',
   'kill-me', 'plant-agent', 'investing', 'house-hunt',
+  'llm-explorer',
 ]
 
 export const routePackageMap: Record<string, string> = {
@@ -19,6 +20,7 @@ export const routePackageMap: Record<string, string> = {
   'plant-agent': 'plant-agent-routes',
   'investing': 'investing-routes',
   'house-hunt': 'house-hunt-routes',
+  'llm-explorer': 'llm-explorer-routes',
 }
 
 // ── tofu view ───────────────────────────────────────────────
@@ -37,7 +39,7 @@ export const overviewRepos = [
   'fzt', 'fzt-frontend', 'fzt-terminal', 'fzt-browser', 'fzt-automate',
   'my-homepage', 'fzt-showcase', 'fzt-picker',
   'kill-me', 'plant-agent', 'investing', 'house-hunt',
-  'diagrams', 'api',
+  'diagrams', 'api', 'llm-explorer',
   'infra-bootstrap', 'landing-page', 'emotions-mcp',
 ]
 
@@ -56,4 +58,5 @@ export const overviewEdges: DispatchEdge[] = [
   { source: 'investing', target: 'api' },
   { source: 'house-hunt', target: 'api' },
   { source: 'diagrams', target: 'api' },
+  { source: 'llm-explorer', target: 'api' },
 ]
