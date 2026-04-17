@@ -74,9 +74,13 @@ function isActive(runs: CIRun[]): boolean {
 
 function edgeStyle(cascading: boolean) {
   return {
-    stroke: cascading ? '#f59e0b' : '#334155',
+    // Idle edges are visible but subdued — slate-500 at 0.7 opacity reads as
+    // structural backdrop against the slate-900 page bg without competing
+    // with active edges. Active stays amber; the color difference (not
+    // opacity or width alone) is what makes activity pop.
+    stroke: cascading ? '#f59e0b' : '#64748b',
     strokeWidth: cascading ? 2 : 1,
-    opacity: cascading ? 1 : 0.4,
+    opacity: cascading ? 1 : 0.7,
   }
 }
 
