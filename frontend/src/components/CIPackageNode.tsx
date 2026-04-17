@@ -11,8 +11,8 @@ function CIPackageNodeComponent({ data }: NodeProps) {
   const d = data as unknown as CIPackageData
   return (
     <>
-      <Handle type="target" position={Position.Left} id="left-tgt" className="!bg-transparent !border-0" />
-      <Handle type="source" position={Position.Right} id="right-src" className="!bg-transparent !border-0" />
+      <Handle type="target" position={Position.Top} id="top-tgt" className="!bg-transparent !border-0" />
+      <Handle type="source" position={Position.Bottom} id="bottom-src" className="!bg-transparent !border-0" />
       <div className="rounded-md px-3 py-2 border border-slate-600 bg-[#0f172a] min-w-[140px]">
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-slate-300 font-mono truncate">{d.label}</span>
