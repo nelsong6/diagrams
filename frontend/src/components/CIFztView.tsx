@@ -4,6 +4,7 @@ import {
   Background,
   Controls,
   BackgroundVariant,
+  MarkerType,
   type Node,
   type Edge,
 } from '@xyflow/react'
@@ -81,6 +82,17 @@ function edgeStyle(cascading: boolean) {
     stroke: cascading ? '#f59e0b' : '#64748b',
     strokeWidth: cascading ? 2 : 1,
     opacity: cascading ? 1 : 0.7,
+  }
+}
+
+// Arrow marker at the consumer end. Color matches the edge stroke so active
+// arrows are amber and idle arrows are slate-500.
+function edgeMarker(cascading: boolean) {
+  return {
+    type: MarkerType.ArrowClosed,
+    color: cascading ? '#f59e0b' : '#64748b',
+    width: 18,
+    height: 18,
   }
 }
 
@@ -188,6 +200,7 @@ function buildLayout(
     type: 'default',
     animated: fztActive || feActive,
     style: edgeStyle(fztActive || feActive),
+    markerEnd: edgeMarker(fztActive || feActive),
   })
 
   // ── Layer 2: fzt-terminal ──────────────────────────────────────
@@ -226,6 +239,7 @@ function buildLayout(
     type: 'default',
     animated: feActive || termActive,
     style: edgeStyle(feActive || termActive),
+    markerEnd: edgeMarker(feActive || termActive),
   })
 
   // ── Layer 3: middle consumers (stacked vertically) ─────────────
@@ -275,6 +289,7 @@ function buildLayout(
       type: 'default',
       animated: termActive || active,
       style: edgeStyle(termActive || active),
+      markerEnd: edgeMarker(termActive || active),
     })
   }
 
@@ -310,6 +325,7 @@ function buildLayout(
       type: 'default',
       animated: browserActive || active,
       style: edgeStyle(browserActive || active),
+      markerEnd: edgeMarker(browserActive || active),
     })
   }
 
