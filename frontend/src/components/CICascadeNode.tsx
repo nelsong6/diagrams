@@ -11,10 +11,13 @@ export interface CICascadeData {
   hasProvided: boolean
 }
 
-// Layout constants — shared with CIFztView for positioning child package nodes
-export const CASCADE_PKG_HEIGHT = 44
-export const CASCADE_PKG_PADDING = 16
-export const CASCADE_TITLE_HEIGHT = 56
+// Layout constants — shared with CIFztView for positioning child package nodes.
+// After the 90° CCW rotation, package boxes are arranged horizontally inside
+// each container: [consumed pkg] [title+status] [provided pkg]. The constants
+// represent the per-slot width along the cascade (left-to-right) axis.
+export const CASCADE_PKG_WIDTH = 180          // width allocated per pkg slot
+export const CASCADE_PKG_PADDING = 16          // horizontal padding around a slot
+export const CASCADE_TITLE_WIDTH = 140         // width of the title+status middle slot
 
 function getStatus(runs: CIRun[]) {
   if (runs.length === 0) return 'idle'
@@ -64,8 +67,10 @@ function CICascadeNodeComponent({ data }: NodeProps) {
     ? d.runs.reduce((a, b) => new Date(a.updatedAt) > new Date(b.updatedAt) ? a : b)
     : null
 
-  // Title is vertically centered between consumed and provided zones
-  const topOffset = d.hasConsumed ? CASCADE_PKG_HEIGHT + CASCADE_PKG_PADDING * 2 : 0
+  // Title is horizontally centered between consumed (left) and provided (right)
+  // package slots. If there's a consumed box, the title's left edge sits
+  // beyond the consumed slot; otherwise it starts at the container's left pad.
+  const leftOffset = d.hasConsumed ? CASCADE_PKG_WIDTH + CASCADE_PKG_PADDING * 2 : CASCADE_PKG_PADDING
 
   return (
     <div
@@ -81,7 +86,10 @@ function CICascadeNodeComponent({ data }: NodeProps) {
       }}
       onClick={() => latestRun && window.open(latestRun.htmlUrl, '_blank')}
     >
-      <div className="px-4 py-3" style={{ marginTop: topOffset }}>
+      <div
+        className="py-3"
+        style={{ marginLeft: leftOffset, width: CASCADE_TITLE_WIDTH }}
+      >
         <div className="font-bold text-sm text-slate-200">{d.label}</div>
         {latestRun && (
           <div className="flex items-center gap-2 mt-1">

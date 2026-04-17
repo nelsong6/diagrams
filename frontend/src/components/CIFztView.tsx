@@ -11,9 +11,9 @@ import '@xyflow/react/dist/style.css'
 import { useSSE } from '../hooks/useSSE'
 import CICascadeNodeComponent, {
   type CICascadeData,
-  CASCADE_PKG_HEIGHT,
+  CASCADE_PKG_WIDTH,
   CASCADE_PKG_PADDING,
-  CASCADE_TITLE_HEIGHT,
+  CASCADE_TITLE_WIDTH,
 } from './CICascadeNode'
 import CIPackageNodeComponent from './CIPackageNode'
 import type { CIRun, PublishedVersion, DeployedVersion, ConnectionStatus } from '../types/ci'
@@ -23,46 +23,51 @@ const nodeTypes = {
   'cascade-pkg': CIPackageNodeComponent,
 }
 
-const NODE_WIDTH = 240
-const PKG_WIDTH = 200
-const NODE_SPACING = 40
-const ROW_GAP = 60
-const PKG_INSET = (NODE_WIDTH - PKG_WIDTH) / 2
+// Post-rotation (90° CCW) layout constants. The cascade flows left → right:
+// engine (fzt) on the left, app consumers on the right. Nodes within the same
+// layer stack vertically.
+const NODE_HEIGHT = 86          // vertical extent of a cascade container
+const PKG_HEIGHT = 44            // height of each pkg box (consumed/provided)
+const PKG_Y = (NODE_HEIGHT - PKG_HEIGHT) / 2  // vertical center inside container
+const LAYER_GAP = 80             // horizontal gap between layers
+const NODE_GAP = 40              // vertical gap between stacked nodes in a layer
 
 // Row 3 — middle consumers. Each imports fzt-terminal as a Go module and
-// produces its own release artifact (or, for fzt-picker, a local binary that
-// no one else consumes — leaf node).
+// produces its own release artifact. All three are leaves w.r.t. further
+// diagrammed Go-module consumers, but they all publish release binaries
+// that something (an app, a shell wrapper, a file-dialog hook) consumes
+// outside the diagram — so all show a provided release pkg box.
 const MIDDLE_CONSUMERS = [
   { id: 'fzt-browser', label: 'fzt-browser', providesRelease: true },
   { id: 'fzt-automate', label: 'fzt-automate', providesRelease: true },
   { id: 'fzt-picker', label: 'fzt-picker', providesRelease: true },
 ] as const
 
-// Row 4 — app consumers. Download from fzt-browser's release.
+// Row 4 — app consumers. Download from fzt-browser's release at deploy time.
 const APP_CONSUMERS = [
   { id: 'my-homepage', label: 'my-homepage' },
   { id: 'fzt-showcase', label: 'fzt-showcase' },
 ] as const
 
-function containerHeight(hasConsumed: boolean, hasProvided: boolean): number {
-  let h = CASCADE_TITLE_HEIGHT
-  if (hasConsumed) h += CASCADE_PKG_HEIGHT + CASCADE_PKG_PADDING * 2
-  if (hasProvided) h += CASCADE_PKG_HEIGHT + CASCADE_PKG_PADDING * 2
-  if (!hasProvided) h += CASCADE_PKG_PADDING // extra bottom breathing room
-  return h
+// Container width depends on which pkg slots are populated. Layout inside:
+//   [pad] [consumed? pad] [title] [pad provided?] [pad]
+function containerWidth(hasConsumed: boolean, hasProvided: boolean): number {
+  let w = CASCADE_PKG_PADDING + CASCADE_TITLE_WIDTH + CASCADE_PKG_PADDING
+  if (hasConsumed) w += CASCADE_PKG_WIDTH + CASCADE_PKG_PADDING
+  if (hasProvided) w += CASCADE_PKG_WIDTH + CASCADE_PKG_PADDING
+  return w
 }
 
-// Row width for a list of N nodes laid out with NODE_SPACING between them.
-function rowWidth(count: number): number {
-  return count * NODE_WIDTH + (count - 1) * NODE_SPACING
-}
+// X position of the consumed pkg inside its container (relative to container's
+// top-left). Always the leftmost slot when present.
+const CONSUMED_X = CASCADE_PKG_PADDING
 
-// X coordinate for the i-th node in a row of `count` nodes, centered within
-// the widest row so every layer's center aligns.
-function colX(i: number, count: number, widestRow: number): number {
-  const rowW = rowWidth(count)
-  const offset = (widestRow - rowW) / 2
-  return offset + i * (NODE_WIDTH + NODE_SPACING)
+// X position of the provided pkg inside its container.
+function providedX(hasConsumed: boolean): number {
+  const titleStart = hasConsumed
+    ? CASCADE_PKG_WIDTH + CASCADE_PKG_PADDING * 2
+    : CASCADE_PKG_PADDING
+  return titleStart + CASCADE_TITLE_WIDTH + CASCADE_PKG_PADDING
 }
 
 function isActive(runs: CIRun[]): boolean {
@@ -85,196 +90,184 @@ function buildLayout(
   const nodes: Node[] = []
   const edges: Edge[] = []
 
-  // The middle-consumers row is widest (3 nodes). All single-node rows center
-  // over its full width; the app-consumers row (2 nodes) also centers over it.
-  const widest = rowWidth(MIDDLE_CONSUMERS.length)
+  // Dimensions by node id (known ahead of positioning)
+  const fztW = containerWidth(false, true)
+  const feW = containerWidth(true, true)
+  const termW = containerWidth(true, true)
+  const midW = containerWidth(true, true)   // all middle consumers provide releases
+  const appW = containerWidth(true, false)
 
-  // ── Row 0: fzt (engine) ─────────────────────────────────────────
+  // Layers (left → right). Each layer uses a uniform width = max container
+  // width in that layer, so the cascade x-grid stays aligned.
+  const layerWidths = [fztW, feW, termW, midW, appW]
+  const layerCounts = [1, 1, 1, MIDDLE_CONSUMERS.length, APP_CONSUMERS.length]
+
+  // Cumulative x for each layer's left edge
+  const layerX: number[] = [0]
+  for (let i = 1; i < layerWidths.length; i++) {
+    layerX.push(layerX[i - 1] + layerWidths[i - 1] + LAYER_GAP)
+  }
+
+  // Vertical canvas height = tallest layer (by count)
+  const maxNodesInLayer = Math.max(...layerCounts)
+  const canvasHeight = maxNodesInLayer * (NODE_HEIGHT + NODE_GAP) - NODE_GAP
+  const canvasCenterY = canvasHeight / 2
+
+  // Helper: compute y for the i-th node in a layer of N nodes, centered
+  // vertically on canvasCenterY.
+  function layerY(i: number, n: number): number {
+    const layerHeight = n * (NODE_HEIGHT + NODE_GAP) - NODE_GAP
+    const layerStart = canvasCenterY - layerHeight / 2
+    return layerStart + i * (NODE_HEIGHT + NODE_GAP)
+  }
+
+  // Helper: produce a cascade container node + its pkg children, and return
+  // both for appending to the nodes array.
+  function cascadeNode(
+    id: string,
+    label: string,
+    runs: CIRun[],
+    hasConsumed: boolean,
+    hasProvided: boolean,
+    x: number,
+    y: number,
+  ) {
+    const w = containerWidth(hasConsumed, hasProvided)
+    nodes.push({
+      id,
+      type: 'cascade',
+      position: { x, y },
+      style: { width: w, height: NODE_HEIGHT },
+      data: {
+        label,
+        runs,
+        containerWidth: w,
+        containerHeight: NODE_HEIGHT,
+        hasConsumed,
+        hasProvided,
+      } satisfies CICascadeData,
+    })
+  }
+
+  // ── Layer 0: fzt (engine) ───────────────────────────────────────
   const fztRuns = runsByRepo.get('fzt') || []
   const fztActive = isActive(fztRuns)
-  const fztH = containerHeight(false, true)
-  const fztY = 0
-  const fztX = colX(0, 1, widest)
+  const fztX = layerX[0]
+  const fztY = layerY(0, 1)
+  cascadeNode('fzt', 'fzt', fztRuns, false, true, fztX, fztY)
 
-  nodes.push({
-    id: 'fzt',
-    type: 'cascade',
-    position: { x: fztX, y: fztY },
-    style: { width: NODE_WIDTH, height: fztH },
-    data: {
-      label: 'fzt',
-      runs: fztRuns,
-      containerWidth: NODE_WIDTH,
-      containerHeight: fztH,
-      hasConsumed: false,
-      hasProvided: true,
-    } satisfies CICascadeData,
-  })
-
-  const fztProvidedY = CASCADE_TITLE_HEIGHT + CASCADE_PKG_PADDING
   nodes.push({
     id: 'pkg-fzt-engine',
     type: 'cascade-pkg',
     parentId: 'fzt',
     extent: 'parent' as const,
-    position: { x: PKG_INSET, y: fztProvidedY },
-    style: { width: PKG_WIDTH },
+    position: { x: providedX(false), y: PKG_Y },
+    style: { width: CASCADE_PKG_WIDTH },
     data: { label: 'fzt', deployedVersion: versions.get('fzt')?.version, badge: 'go module' },
   })
 
-  // ── Row 1: fzt-frontend ─────────────────────────────────────────
+  // ── Layer 1: fzt-frontend ───────────────────────────────────────
   const feRuns = runsByRepo.get('fzt-frontend') || []
   const feActive = isActive(feRuns)
   const feDeployed = deployed.get('fzt-frontend')
-  const feH = containerHeight(true, true)
-  const feY = fztY + fztH + ROW_GAP
-  const feX = colX(0, 1, widest)
-
-  nodes.push({
-    id: 'fzt-frontend',
-    type: 'cascade',
-    position: { x: feX, y: feY },
-    style: { width: NODE_WIDTH, height: feH },
-    data: {
-      label: 'fzt-frontend',
-      runs: feRuns,
-      containerWidth: NODE_WIDTH,
-      containerHeight: feH,
-      hasConsumed: true,
-      hasProvided: true,
-    } satisfies CICascadeData,
-  })
+  const feX = layerX[1]
+  const feY = layerY(0, 1)
+  cascadeNode('fzt-frontend', 'fzt-frontend', feRuns, true, true, feX, feY)
 
   nodes.push({
     id: 'pkg-fzt-frontend-in',
     type: 'cascade-pkg',
     parentId: 'fzt-frontend',
     extent: 'parent' as const,
-    position: { x: PKG_INSET, y: CASCADE_PKG_PADDING },
-    style: { width: PKG_WIDTH },
+    position: { x: CONSUMED_X, y: PKG_Y },
+    style: { width: CASCADE_PKG_WIDTH },
     data: { label: 'fzt', deployedVersion: feDeployed?.versions?.fzt, badge: 'go module' },
   })
-
-  const fePrvY = CASCADE_PKG_HEIGHT + CASCADE_PKG_PADDING * 2 + CASCADE_TITLE_HEIGHT + CASCADE_PKG_PADDING
   nodes.push({
     id: 'pkg-fzt-frontend-out',
     type: 'cascade-pkg',
     parentId: 'fzt-frontend',
     extent: 'parent' as const,
-    position: { x: PKG_INSET, y: fePrvY },
-    style: { width: PKG_WIDTH },
+    position: { x: providedX(true), y: PKG_Y },
+    style: { width: CASCADE_PKG_WIDTH },
     data: { label: 'fzt-frontend', deployedVersion: versions.get('fzt-frontend')?.version, badge: 'go module' },
   })
 
-  // Edge fzt.engine → fzt-frontend.in
+  // Edge: fzt → fzt-frontend
   edges.push({
     id: 'pkg-fzt-engine->pkg-fzt-frontend-in',
     source: 'pkg-fzt-engine',
-    sourceHandle: 'bottom-src',
+    sourceHandle: 'right-src',
     target: 'pkg-fzt-frontend-in',
-    targetHandle: 'top-tgt',
+    targetHandle: 'left-tgt',
     type: 'default',
     animated: fztActive || feActive,
     style: edgeStyle(fztActive || feActive),
   })
 
-  // ── Row 2: fzt-terminal ─────────────────────────────────────────
+  // ── Layer 2: fzt-terminal ──────────────────────────────────────
   const termRuns = runsByRepo.get('fzt-terminal') || []
   const termActive = isActive(termRuns)
   const termDeployed = deployed.get('fzt-terminal')
-  const termH = containerHeight(true, true)
-  const termY = feY + feH + ROW_GAP
-  const termX = colX(0, 1, widest)
+  const termX = layerX[2]
+  const termY = layerY(0, 1)
+  cascadeNode('fzt-terminal', 'fzt-terminal', termRuns, true, true, termX, termY)
 
-  nodes.push({
-    id: 'fzt-terminal',
-    type: 'cascade',
-    position: { x: termX, y: termY },
-    style: { width: NODE_WIDTH, height: termH },
-    data: {
-      label: 'fzt-terminal',
-      runs: termRuns,
-      containerWidth: NODE_WIDTH,
-      containerHeight: termH,
-      hasConsumed: true,
-      hasProvided: true,
-    } satisfies CICascadeData,
-  })
-
-  // fzt-terminal consumes fzt-frontend directly (and fzt transitively).
-  // Show the direct one as the cascade edge; the pin version below.
+  // Shows fzt-frontend as the direct consumed dep (fzt is transitive via
+  // fzt-frontend). Single consumed slot per node to keep layout simple.
   nodes.push({
     id: 'pkg-fzt-terminal-in',
     type: 'cascade-pkg',
     parentId: 'fzt-terminal',
     extent: 'parent' as const,
-    position: { x: PKG_INSET, y: CASCADE_PKG_PADDING },
-    style: { width: PKG_WIDTH },
+    position: { x: CONSUMED_X, y: PKG_Y },
+    style: { width: CASCADE_PKG_WIDTH },
     data: {
       label: 'fzt-frontend',
       deployedVersion: termDeployed?.versions?.fztFrontend,
       badge: 'go module',
     },
   })
-
-  const termPrvY = CASCADE_PKG_HEIGHT + CASCADE_PKG_PADDING * 2 + CASCADE_TITLE_HEIGHT + CASCADE_PKG_PADDING
   nodes.push({
     id: 'pkg-fzt-terminal-out',
     type: 'cascade-pkg',
     parentId: 'fzt-terminal',
     extent: 'parent' as const,
-    position: { x: PKG_INSET, y: termPrvY },
-    style: { width: PKG_WIDTH },
+    position: { x: providedX(true), y: PKG_Y },
+    style: { width: CASCADE_PKG_WIDTH },
     data: { label: 'fzt-terminal', deployedVersion: versions.get('fzt-terminal')?.version, badge: 'go module' },
   })
 
-  // Edge fzt-frontend.out → fzt-terminal.in
+  // Edge: fzt-frontend → fzt-terminal
   edges.push({
     id: 'pkg-fzt-frontend-out->pkg-fzt-terminal-in',
     source: 'pkg-fzt-frontend-out',
-    sourceHandle: 'bottom-src',
+    sourceHandle: 'right-src',
     target: 'pkg-fzt-terminal-in',
-    targetHandle: 'top-tgt',
+    targetHandle: 'left-tgt',
     type: 'default',
     animated: feActive || termActive,
     style: edgeStyle(feActive || termActive),
   })
 
-  // ── Row 3: middle consumers (fzt-browser, fzt-automate, fzt-picker) ─
-  const midY = termY + termH + ROW_GAP
-
+  // ── Layer 3: middle consumers (stacked vertically) ─────────────
+  const midLayerX = layerX[3]
   for (let i = 0; i < MIDDLE_CONSUMERS.length; i++) {
     const { id, label, providesRelease } = MIDDLE_CONSUMERS[i]
     const runs = runsByRepo.get(id) || []
     const active = isActive(runs)
     const dep = deployed.get(id)
-    const h = containerHeight(true, providesRelease)
-    const x = colX(i, MIDDLE_CONSUMERS.length, widest)
+    const y = layerY(i, MIDDLE_CONSUMERS.length)
+    cascadeNode(id, label, runs, true, providesRelease, midLayerX, y)
 
-    nodes.push({
-      id,
-      type: 'cascade',
-      position: { x, y: midY },
-      style: { width: NODE_WIDTH, height: h },
-      data: {
-        label,
-        runs,
-        containerWidth: NODE_WIDTH,
-        containerHeight: h,
-        hasConsumed: true,
-        hasProvided: providesRelease,
-      } satisfies CICascadeData,
-    })
-
-    // Consumed: fzt-terminal (Go module)
     const inId = `pkg-${id}-in`
     nodes.push({
       id: inId,
       type: 'cascade-pkg',
       parentId: id,
       extent: 'parent' as const,
-      position: { x: PKG_INSET, y: CASCADE_PKG_PADDING },
-      style: { width: PKG_WIDTH },
+      position: { x: CONSUMED_X, y: PKG_Y },
+      style: { width: CASCADE_PKG_WIDTH },
       data: {
         label: 'fzt-terminal',
         deployedVersion: dep?.versions?.fztTerminal,
@@ -282,15 +275,14 @@ function buildLayout(
       },
     })
 
-    // Provided: release (if any)
     if (providesRelease) {
       nodes.push({
         id: `pkg-${id}-out`,
         type: 'cascade-pkg',
         parentId: id,
         extent: 'parent' as const,
-        position: { x: PKG_INSET, y: termPrvY },
-        style: { width: PKG_WIDTH },
+        position: { x: providedX(true), y: PKG_Y },
+        style: { width: CASCADE_PKG_WIDTH },
         data: {
           label: id,
           deployedVersion: versions.get(id)?.version,
@@ -299,55 +291,38 @@ function buildLayout(
       })
     }
 
-    // Edge fzt-terminal.out → this.in
+    // Edge: fzt-terminal → this consumer
     edges.push({
       id: `pkg-fzt-terminal-out->${inId}`,
       source: 'pkg-fzt-terminal-out',
-      sourceHandle: 'bottom-src',
+      sourceHandle: 'right-src',
       target: inId,
-      targetHandle: 'top-tgt',
+      targetHandle: 'left-tgt',
       type: 'default',
       animated: termActive || active,
       style: edgeStyle(termActive || active),
     })
   }
 
-  // ── Row 4: app consumers (my-homepage, fzt-showcase) ────────────
-  const appConsumedH = containerHeight(true, false)
+  // ── Layer 4: app consumers (stacked vertically) ───────────────
   const browserActive = isActive(runsByRepo.get('fzt-browser') || [])
-  const appY = midY + containerHeight(true, true) + ROW_GAP
-
+  const appLayerX = layerX[4]
   for (let i = 0; i < APP_CONSUMERS.length; i++) {
     const { id, label } = APP_CONSUMERS[i]
     const runs = runsByRepo.get(id) || []
     const active = isActive(runs)
     const dep = deployed.get(id)
-    const x = colX(i, APP_CONSUMERS.length, widest)
+    const y = layerY(i, APP_CONSUMERS.length)
+    cascadeNode(id, label, runs, true, false, appLayerX, y)
 
-    nodes.push({
-      id,
-      type: 'cascade',
-      position: { x, y: appY },
-      style: { width: NODE_WIDTH, height: appConsumedH },
-      data: {
-        label,
-        runs,
-        containerWidth: NODE_WIDTH,
-        containerHeight: appConsumedH,
-        hasConsumed: true,
-        hasProvided: false,
-      } satisfies CICascadeData,
-    })
-
-    // Consumed: fzt-browser release assets
     const inId = `pkg-${id}-in`
     nodes.push({
       id: inId,
       type: 'cascade-pkg',
       parentId: id,
       extent: 'parent' as const,
-      position: { x: PKG_INSET, y: CASCADE_PKG_PADDING },
-      style: { width: PKG_WIDTH },
+      position: { x: CONSUMED_X, y: PKG_Y },
+      style: { width: CASCADE_PKG_WIDTH },
       data: {
         label: 'fzt-browser',
         deployedVersion: dep?.versions?.fztBrowser,
@@ -358,9 +333,9 @@ function buildLayout(
     edges.push({
       id: `pkg-fzt-browser-out->${inId}`,
       source: 'pkg-fzt-browser-out',
-      sourceHandle: 'bottom-src',
+      sourceHandle: 'right-src',
       target: inId,
-      targetHandle: 'top-tgt',
+      targetHandle: 'left-tgt',
       type: 'default',
       animated: browserActive || active,
       style: edgeStyle(browserActive || active),
