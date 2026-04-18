@@ -38,6 +38,9 @@ function buildLayout(
   deployed: Map<string, DeployedVersion>,
   versionErrors: VersionErrors,
   edgeHealths: Map<string, EdgeHealth>,
+  hostNodeHealths: Map<string, EdgeHealth>,
+  packageHealths: Map<string, EdgeHealth>,
+  containerHealth: EdgeHealth,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
   const edges: Edge[] = []
@@ -73,12 +76,13 @@ function buildLayout(
         publishedVersion: pub,
         deployedVersion: dep,
         versionError: err,
-        health: edgeHealths.get(repo) ?? 'idle',
+        health: hostNodeHealths.get(repo) ?? 'idle',
       } satisfies CINodeData,
     })
   }
 
-  // Container node (API) — aggregate health across every host→api edge.
+  // Container node (API) — health precomputed by checkApiGrammar so it
+  // only shows 'active' when api itself is running (not when a host is).
   const totalHostWidth = n * HOST_NODE_WIDTH + (n - 1) * HOST_SPACING
   const containerWidth = totalHostWidth + CONTAINER_PADDING_X * 2
   const packageNodeHeight = 44
@@ -87,7 +91,6 @@ function buildLayout(
   const containerX = -CONTAINER_PADDING_X
 
   const apiRuns = runsByRepo.get('api') || []
-  const apiHealth = aggregateHealth(edgeHealths.values())
   nodes.push({
     id: 'api-container',
     type: 'api-container',
@@ -97,7 +100,7 @@ function buildLayout(
       containerWidth,
       containerHeight,
       runs: apiRuns,
-      health: apiHealth,
+      health: containerHealth,
     },
     style: { width: containerWidth, height: containerHeight },
   })
@@ -115,7 +118,8 @@ function buildLayout(
     const pkgX = hostX + (HOST_NODE_WIDTH - PACKAGE_NODE_WIDTH) / 2 + CONTAINER_PADDING_X
 
     const deployedVersion = apiDeployed?.versions?.[pkgShortName]
-    const health = edgeHealths.get(repo) ?? 'idle'
+    const edgeHealth = edgeHealths.get(repo) ?? 'idle'
+    const pkgHealth = packageHealths.get(repo) ?? 'idle'
 
     nodes.push({
       id: pkgId,
@@ -127,7 +131,7 @@ function buildLayout(
       data: {
         label: pkgShortName,
         deployedVersion,
-        health,
+        health: pkgHealth,
       },
     })
 
@@ -138,9 +142,9 @@ function buildLayout(
       target: pkgId,
       targetHandle: 'top-tgt',
       type: 'straight',
-      animated: health === 'active',
-      style: edgeStyle(health),
-      markerEnd: edgeMarker(health),
+      animated: edgeHealth === 'active',
+      style: edgeStyle(edgeHealth),
+      markerEnd: edgeMarker(edgeHealth),
     })
   }
 
@@ -170,9 +174,19 @@ type GrammarStatus = 'pass' | 'pending' | 'fail'
 interface GrammarResult {
   status: GrammarStatus
   failures: string[]
-  // Per-host edge health keyed by host repo name. Each host has exactly one
-  // edge into the api container (its route package).
+  // Per-host edge health keyed by host repo name. Active-aware: an edge is
+  // 'active' if host OR api is running. Drives edge-arrow color.
   edgeHealths: Map<string, EdgeHealth>
+  // Per-host NODE health. Same as edge, but 'active' only propagates when
+  // the host itself is running — not when api is. Fixes diagrams#7 (a
+  // finished host inheriting amber from api's cascade activity).
+  hostNodeHealths: Map<string, EdgeHealth>
+  // Per-host PACKAGE node health (packages inside the api container).
+  // 'active' only if api is running.
+  packageHealths: Map<string, EdgeHealth>
+  // API container health: 'active' only if api is running, otherwise the
+  // aggregate of intrinsic (version-match-only) host healths.
+  containerHealth: EdgeHealth
 }
 
 // Mirrors the check-ci-api skill's three checks. Encodes `/ci/api`'s grammar
@@ -198,6 +212,9 @@ function checkApiGrammar(
 
   const failures: string[] = []
   const edgeHealths = new Map<string, EdgeHealth>()
+  const hostNodeHealths = new Map<string, EdgeHealth>()
+  const packageHealths = new Map<string, EdgeHealth>()
+  const intrinsicHealths: EdgeHealth[] = []  // for container aggregate
   const apiDeployed = deployed.get('api')
   const apiActive = activeRepos.has('api')
 
@@ -214,40 +231,38 @@ function checkApiGrammar(
     const pkg = routePackageMap[host]
     const published = packageVersions.get(host)?.version
     const deployedVer = apiDeployed?.versions?.[pkg]
+    const hostActive = activeRepos.has(host)
 
-    if (activeRepos.has(host) || apiActive) {
-      edgeHealths.set(host, 'active')
-    }
-
-    // "No recent runs" on either endpoint = not healthy. Matching versions
-    // without CI evidence is unverified. API prunes runs older than 2h.
-    if (!edgeHealths.has(host) && !reposWithRuns.has(host)) {
+    // Intrinsic (version-match-only) health — drives the underlying
+    // healthy/broken/idle signal without 'active'. Reused for node colors
+    // when the relevant repo isn't actually running.
+    let intrinsic: EdgeHealth
+    if (!reposWithRuns.has(host)) {
       reportMissing(host)
-      edgeHealths.set(host, 'broken')
-      continue
-    }
-    if (!edgeHealths.has(host) && !reposWithRuns.has('api')) {
+      intrinsic = 'broken'
+    } else if (!reposWithRuns.has('api')) {
       reportMissing('api')
-      edgeHealths.set(host, 'broken')
-      continue
-    }
-
-    if (!published) {
+      intrinsic = 'broken'
+    } else if (!published) {
       failures.push(`unknown: ${host} has no published route package`)
-      if (!edgeHealths.has(host)) edgeHealths.set(host, 'broken')
-      continue
-    }
-    if (!deployedVer) {
+      intrinsic = 'broken'
+    } else if (!deployedVer) {
       failures.push(`unknown: api has not deployed ${pkg} (${host}@${published})`)
-      if (!edgeHealths.has(host)) edgeHealths.set(host, 'broken')
-      continue
-    }
-    if (deployedVer !== published) {
+      intrinsic = 'broken'
+    } else if (deployedVer !== published) {
       failures.push(`mismatch: ${host}@${published} ≠ api.${pkg}@${deployedVer}`)
-      if (!edgeHealths.has(host)) edgeHealths.set(host, 'broken')
-      continue
+      intrinsic = 'broken'
+    } else {
+      intrinsic = 'healthy'
     }
-    if (!edgeHealths.has(host)) edgeHealths.set(host, 'healthy')
+    intrinsicHealths.push(intrinsic)
+
+    // Edge health: active if either endpoint running, else intrinsic.
+    edgeHealths.set(host, (hostActive || apiActive) ? 'active' : intrinsic)
+    // Host node health: active only if the host itself is running.
+    hostNodeHealths.set(host, hostActive ? 'active' : intrinsic)
+    // Package node health: active only if api is running.
+    packageHealths.set(host, apiActive ? 'active' : intrinsic)
   }
 
   const expectedPkgs = new Set(Object.values(routePackageMap))
@@ -257,11 +272,17 @@ function checkApiGrammar(
     }
   }
 
+  // Container health: api's own running state if active; otherwise
+  // aggregate intrinsics across all hosts.
+  const containerHealth: EdgeHealth = apiActive
+    ? 'active'
+    : aggregateHealth(intrinsicHealths)
+
   const status: GrammarStatus =
     activeRepos.size > 0 ? 'pending'
     : failures.length === 0 ? 'pass'
     : 'fail'
-  return { status, failures, edgeHealths }
+  return { status, failures, edgeHealths, hostNodeHealths, packageHealths, containerHealth }
 }
 
 function GrammarBadge({ result }: { result: GrammarResult }) {
@@ -311,8 +332,11 @@ export default function CIApiContainerView() {
   )
 
   const { nodes, edges } = useMemo(
-    () => buildLayout(apiHostRepos, runsByRepo, packageVersions, deployed, versionErrors, grammar.edgeHealths),
-    [runsByRepo, packageVersions, deployed, versionErrors, grammar.edgeHealths],
+    () => buildLayout(
+      apiHostRepos, runsByRepo, packageVersions, deployed, versionErrors,
+      grammar.edgeHealths, grammar.hostNodeHealths, grammar.packageHealths, grammar.containerHealth,
+    ),
+    [runsByRepo, packageVersions, deployed, versionErrors, grammar.edgeHealths, grammar.hostNodeHealths, grammar.packageHealths, grammar.containerHealth],
   )
 
   const hasActiveRuns = useMemo(() => {

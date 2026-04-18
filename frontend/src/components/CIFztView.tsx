@@ -76,6 +76,11 @@ interface GrammarResult {
   // Per-edge health keyed by `${producer}|${consumer}|${field}`. Used to
   // color edges + aggregate to per-node health.
   edgeHealths: Map<string, EdgeHealth>
+  // Repos currently running a cascade pipeline. Used by nodeHealth to
+  // decide whether incident-edge "active" state propagates to the node
+  // (only when the node itself is running — otherwise downstream cascade
+  // bleeds amber up to finished producers).
+  activeRepos: Set<string>
 }
 
 function edgeKey(producer: string, consumer: string, field: string): string {
@@ -157,17 +162,24 @@ function checkGrammar(
     activeRepos.size > 0 ? 'pending'
     : failures.length === 0 ? 'pass'
     : 'fail'
-  return { status, failures, edgeHealths }
+  return { status, failures, edgeHealths, activeRepos }
 }
 
 // Aggregate health of all verification edges incident to `repo` (as producer
 // or consumer). Worst-state-wins so broken links aren't hidden.
-function nodeHealth(repo: string, edgeHealths: Map<string, EdgeHealth>): EdgeHealth {
+//
+// `active` edge states are filtered out unless the repo itself is running —
+// otherwise a downstream cascade bleeds amber up to a finished producer and
+// contradicts its own success badge (diagrams#7).
+function nodeHealth(repo: string, edgeHealths: Map<string, EdgeHealth>, activeRepos: Set<string>): EdgeHealth {
   const incident: EdgeHealth[] = []
+  const ownRunIsActive = activeRepos.has(repo)
   for (const [producer, consumer, field] of VERIFICATION_EDGES) {
     if (producer !== repo && consumer !== repo) continue
     const h = edgeHealths.get(edgeKey(producer, consumer, field))
-    if (h) incident.push(h)
+    if (!h) continue
+    if (h === 'active' && !ownRunIsActive) continue
+    incident.push(h)
   }
   return aggregateHealth(incident)
 }
@@ -197,6 +209,7 @@ function buildLayout(
   versions: Map<string, PublishedVersion>,
   deployed: Map<string, DeployedVersion>,
   edgeHealths: Map<string, EdgeHealth>,
+  activeRepos: Set<string>,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
   const edges: Edge[] = []
@@ -247,7 +260,7 @@ function buildLayout(
         containerHeight: h,
         hasConsumed,
         hasProvided,
-        health: nodeHealth(id, edgeHealths),
+        health: nodeHealth(id, edgeHealths, activeRepos),
       } satisfies CICascadeData,
     })
   }
@@ -500,8 +513,8 @@ export default function CIFztView() {
   )
 
   const { nodes, edges } = useMemo(
-    () => buildLayout(runsByRepo, versions, deployed, grammar.edgeHealths),
-    [runsByRepo, versions, deployed, grammar.edgeHealths],
+    () => buildLayout(runsByRepo, versions, deployed, grammar.edgeHealths, grammar.activeRepos),
+    [runsByRepo, versions, deployed, grammar.edgeHealths, grammar.activeRepos],
   )
 
   const hasActiveRuns = useMemo(() => {
