@@ -12,7 +12,7 @@ import { useSSE } from '../hooks/useSSE'
 import CIPipelineNodeComponent, { type CINodeData, estimateNodeHeight } from './CIPipelineNode'
 import CIContainerNodeComponent from './CIContainerNode'
 import CIPackageNodeComponent from './CIPackageNode'
-import { edgeStyle, edgeMarker } from './ciEdgeStyle'
+import { edgeStyle, edgeMarker, aggregateHealth, type EdgeHealth } from './ciEdgeStyle'
 import type { CIRun, PublishedVersion, DeployedVersion, VersionErrors, ConnectionStatus } from '../types/ci'
 import { apiHostRepos, routePackageMap } from '../data/ci-views'
 
@@ -37,6 +37,7 @@ function buildLayout(
   versions: Map<string, PublishedVersion>,
   deployed: Map<string, DeployedVersion>,
   versionErrors: VersionErrors,
+  edgeHealths: Map<string, EdgeHealth>,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
   const edges: Edge[] = []
@@ -72,11 +73,12 @@ function buildLayout(
         publishedVersion: pub,
         deployedVersion: dep,
         versionError: err,
+        health: edgeHealths.get(repo) ?? 'idle',
       } satisfies CINodeData,
     })
   }
 
-  // Container node (API)
+  // Container node (API) — aggregate health across every host→api edge.
   const totalHostWidth = n * HOST_NODE_WIDTH + (n - 1) * HOST_SPACING
   const containerWidth = totalHostWidth + CONTAINER_PADDING_X * 2
   const packageNodeHeight = 44
@@ -85,6 +87,7 @@ function buildLayout(
   const containerX = -CONTAINER_PADDING_X
 
   const apiRuns = runsByRepo.get('api') || []
+  const apiHealth = aggregateHealth(edgeHealths.values())
   nodes.push({
     id: 'api-container',
     type: 'api-container',
@@ -94,6 +97,7 @@ function buildLayout(
       containerWidth,
       containerHeight,
       runs: apiRuns,
+      health: apiHealth,
     },
     style: { width: containerWidth, height: containerHeight },
   })
@@ -111,6 +115,7 @@ function buildLayout(
     const pkgX = hostX + (HOST_NODE_WIDTH - PACKAGE_NODE_WIDTH) / 2 + CONTAINER_PADDING_X
 
     const deployedVersion = apiDeployed?.versions?.[pkgShortName]
+    const health = edgeHealths.get(repo) ?? 'idle'
 
     nodes.push({
       id: pkgId,
@@ -122,14 +127,9 @@ function buildLayout(
       data: {
         label: pkgShortName,
         deployedVersion,
+        health,
       },
     })
-
-    // Edge from host to package
-    const hostRuns = runsByRepo.get(repo) || []
-    const hostActive = hostRuns.some(r => r.status === 'in_progress' || r.status === 'queued')
-    const apiActive = apiRuns.some(r => r.status === 'in_progress' || r.status === 'queued')
-    const cascading = hostActive || apiActive
 
     edges.push({
       id: `${repo}->${pkgId}`,
@@ -138,9 +138,9 @@ function buildLayout(
       target: pkgId,
       targetHandle: 'top-tgt',
       type: 'straight',
-      animated: cascading,
-      style: edgeStyle(cascading),
-      markerEnd: edgeMarker(cascading),
+      animated: health === 'active',
+      style: edgeStyle(health),
+      markerEnd: edgeMarker(health),
     })
   }
 
@@ -170,6 +170,9 @@ type GrammarStatus = 'pass' | 'pending' | 'fail'
 interface GrammarResult {
   status: GrammarStatus
   failures: string[]
+  // Per-host edge health keyed by host repo name. Each host has exactly one
+  // edge into the api container (its route package).
+  edgeHealths: Map<string, EdgeHealth>
 }
 
 // Mirrors the check-ci-api skill's three checks. Encodes `/ci/api`'s grammar
@@ -183,32 +186,44 @@ function checkApiGrammar(
   packageVersions: Map<string, PublishedVersion>,
   deployed: Map<string, DeployedVersion>,
 ): GrammarResult {
+  const activeRepos = new Set<string>()
   for (const run of runs.values()) {
     if (!API_CASCADE_REPOS.has(run.repoName)) continue
     if (run.status === 'in_progress' || run.status === 'queued') {
-      return { status: 'pending', failures: [] }
+      activeRepos.add(run.repoName)
     }
   }
 
   const failures: string[] = []
+  const edgeHealths = new Map<string, EdgeHealth>()
   const apiDeployed = deployed.get('api')
+  const apiActive = activeRepos.has('api')
 
   for (const host of apiHostRepos) {
     const pkg = routePackageMap[host]
     const published = packageVersions.get(host)?.version
     const deployedVer = apiDeployed?.versions?.[pkg]
 
+    if (activeRepos.has(host) || apiActive) {
+      edgeHealths.set(host, 'active')
+    }
+
     if (!published) {
       failures.push(`unknown: ${host} has no published route package`)
+      if (!edgeHealths.has(host)) edgeHealths.set(host, 'broken')
       continue
     }
     if (!deployedVer) {
       failures.push(`unknown: api has not deployed ${pkg} (${host}@${published})`)
+      if (!edgeHealths.has(host)) edgeHealths.set(host, 'broken')
       continue
     }
     if (deployedVer !== published) {
       failures.push(`mismatch: ${host}@${published} ≠ api.${pkg}@${deployedVer}`)
+      if (!edgeHealths.has(host)) edgeHealths.set(host, 'broken')
+      continue
     }
+    if (!edgeHealths.has(host)) edgeHealths.set(host, 'healthy')
   }
 
   const expectedPkgs = new Set(Object.values(routePackageMap))
@@ -218,7 +233,11 @@ function checkApiGrammar(
     }
   }
 
-  return { status: failures.length === 0 ? 'pass' : 'fail', failures }
+  const status: GrammarStatus =
+    activeRepos.size > 0 ? 'pending'
+    : failures.length === 0 ? 'pass'
+    : 'fail'
+  return { status, failures, edgeHealths }
 }
 
 function GrammarBadge({ result }: { result: GrammarResult }) {
@@ -262,14 +281,14 @@ export default function CIApiContainerView() {
     return map
   }, [runs])
 
-  const { nodes, edges } = useMemo(
-    () => buildLayout(apiHostRepos, runsByRepo, packageVersions, deployed, versionErrors),
-    [runsByRepo, packageVersions, deployed, versionErrors],
-  )
-
   const grammar = useMemo(
     () => checkApiGrammar(runs, packageVersions, deployed),
     [runs, packageVersions, deployed],
+  )
+
+  const { nodes, edges } = useMemo(
+    () => buildLayout(apiHostRepos, runsByRepo, packageVersions, deployed, versionErrors, grammar.edgeHealths),
+    [runsByRepo, packageVersions, deployed, versionErrors, grammar.edgeHealths],
   )
 
   const hasActiveRuns = useMemo(() => {

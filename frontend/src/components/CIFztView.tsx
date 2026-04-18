@@ -16,7 +16,7 @@ import CICascadeNodeComponent, {
   CASCADE_TITLE_HEIGHT,
 } from './CICascadeNode'
 import CIPackageNodeComponent from './CIPackageNode'
-import { edgeStyle, edgeMarker } from './ciEdgeStyle'
+import { edgeStyle, edgeMarker, aggregateHealth, type EdgeHealth } from './ciEdgeStyle'
 import type { CIRun, PublishedVersion, DeployedVersion, ConnectionStatus } from '../types/ci'
 
 const nodeTypes = {
@@ -73,6 +73,13 @@ type GrammarStatus = 'pass' | 'pending' | 'fail'
 interface GrammarResult {
   status: GrammarStatus
   failures: string[]
+  // Per-edge health keyed by `${producer}|${consumer}|${field}`. Used to
+  // color edges + aggregate to per-node health.
+  edgeHealths: Map<string, EdgeHealth>
+}
+
+function edgeKey(producer: string, consumer: string, field: string): string {
+  return `${producer}|${consumer}|${field}`
 }
 
 function checkGrammar(
@@ -80,32 +87,62 @@ function checkGrammar(
   versions: Map<string, PublishedVersion>,
   deployed: Map<string, DeployedVersion>,
 ): GrammarResult {
+  const activeRepos = new Set<string>()
   for (const run of runs.values()) {
     if (!FZT_CASCADE_REPOS.has(run.repoName)) continue
     if (run.status === 'in_progress' || run.status === 'queued') {
-      return { status: 'pending', failures: [] }
+      activeRepos.add(run.repoName)
     }
   }
 
   const failures: string[] = []
+  const edgeHealths = new Map<string, EdgeHealth>()
   for (const [producer, consumer, field] of VERIFICATION_EDGES) {
+    const key = edgeKey(producer, consumer, field)
+
+    if (activeRepos.has(producer) || activeRepos.has(consumer)) {
+      edgeHealths.set(key, 'active')
+      continue
+    }
+
     const prodVer = versions.get(producer)?.version
     const consVer = deployed.get(consumer)?.versions?.[field]
 
     if (!prodVer) {
       failures.push(`unknown: ${producer} has no release`)
+      edgeHealths.set(key, 'broken')
       continue
     }
     if (!consVer) {
       failures.push(`unknown: ${consumer}.${field} missing (producer ${producer}@${prodVer})`)
+      edgeHealths.set(key, 'broken')
       continue
     }
     if (consVer !== prodVer) {
       failures.push(`mismatch: ${producer}@${prodVer} ≠ ${consumer}.${field}@${consVer}`)
+      edgeHealths.set(key, 'broken')
+      continue
     }
+    edgeHealths.set(key, 'healthy')
   }
 
-  return { status: failures.length === 0 ? 'pass' : 'fail', failures }
+  const status: GrammarStatus =
+    activeRepos.size > 0 ? 'pending'
+    : failures.length === 0 ? 'pass'
+    : 'fail'
+  return { status, failures, edgeHealths }
+}
+
+// Aggregate health of all verification edges incident to `repo` (as producer
+// or consumer). Worst-state-wins so broken links aren't hidden.
+function nodeHealth(repo: string, edgeHealths: Map<string, EdgeHealth>): EdgeHealth {
+  const incident: EdgeHealth[] = []
+  for (const [producer, consumer, field] of VERIFICATION_EDGES) {
+    if (producer !== repo && consumer !== repo) continue
+    const h = edgeHealths.get(edgeKey(producer, consumer, field))
+    if (h) incident.push(h)
+  }
+  return aggregateHealth(incident)
 }
 
 function containerHeight(hasConsumed: boolean, hasProvided: boolean): number {
@@ -128,14 +165,11 @@ function providedY(hasConsumed: boolean): number {
   return CASCADE_TITLE_HEIGHT + CASCADE_PKG_PADDING
 }
 
-function isActive(runs: CIRun[]): boolean {
-  return runs.some(r => r.status === 'in_progress' || r.status === 'queued')
-}
-
 function buildLayout(
   runsByRepo: Map<string, CIRun[]>,
   versions: Map<string, PublishedVersion>,
   deployed: Map<string, DeployedVersion>,
+  edgeHealths: Map<string, EdgeHealth>,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
   const edges: Edge[] = []
@@ -186,13 +220,17 @@ function buildLayout(
         containerHeight: h,
         hasConsumed,
         hasProvided,
+        health: nodeHealth(id, edgeHealths),
       } satisfies CICascadeData,
     })
   }
 
+  function lookupEdgeHealth(producer: string, consumer: string, field: string): EdgeHealth {
+    return edgeHealths.get(edgeKey(producer, consumer, field)) ?? 'idle'
+  }
+
   // ── Layer 0: fzt ─────────────────────────────────────────────────
   const fztRuns = runsByRepo.get('fzt') || []
-  const fztActive = isActive(fztRuns)
   cascadeNode('fzt', 'fzt', fztRuns, false, true, layerX[0], stackY(0, 1, fztH), fztH)
   nodes.push({
     id: 'pkg-fzt-engine',
@@ -206,7 +244,6 @@ function buildLayout(
 
   // ── Layer 1: fzt-frontend ───────────────────────────────────────
   const feRuns = runsByRepo.get('fzt-frontend') || []
-  const feActive = isActive(feRuns)
   const feDep = deployed.get('fzt-frontend')
   cascadeNode('fzt-frontend', 'fzt-frontend', feRuns, true, true, layerX[1], stackY(0, 1, feH), feH)
   nodes.push({
@@ -216,7 +253,12 @@ function buildLayout(
     extent: 'parent' as const,
     position: { x: PKG_INSET, y: CONSUMED_Y },
     style: { width: PKG_WIDTH },
-    data: { label: 'fzt', deployedVersion: feDep?.versions?.fzt, badge: 'go module' },
+    data: {
+      label: 'fzt',
+      deployedVersion: feDep?.versions?.fzt,
+      badge: 'go module',
+      health: lookupEdgeHealth('fzt', 'fzt-frontend', 'fzt'),
+    },
   })
   nodes.push({
     id: 'pkg-fzt-frontend-out',
@@ -227,6 +269,7 @@ function buildLayout(
     style: { width: PKG_WIDTH },
     data: { label: 'fzt-frontend', deployedVersion: versions.get('fzt-frontend')?.version, badge: 'go module' },
   })
+  const feToFrontendHealth = lookupEdgeHealth('fzt', 'fzt-frontend', 'fzt')
   edges.push({
     id: 'pkg-fzt-engine->pkg-fzt-frontend-in',
     source: 'pkg-fzt-engine',
@@ -234,14 +277,13 @@ function buildLayout(
     target: 'pkg-fzt-frontend-in',
     targetHandle: 'left-tgt',
     type: 'default',
-    animated: fztActive || feActive,
-    style: edgeStyle(fztActive || feActive),
-    markerEnd: edgeMarker(fztActive || feActive),
+    animated: feToFrontendHealth === 'active',
+    style: edgeStyle(feToFrontendHealth),
+    markerEnd: edgeMarker(feToFrontendHealth),
   })
 
   // ── Layer 2: fzt-terminal ──────────────────────────────────────
   const termRuns = runsByRepo.get('fzt-terminal') || []
-  const termActive = isActive(termRuns)
   const termDep = deployed.get('fzt-terminal')
   cascadeNode('fzt-terminal', 'fzt-terminal', termRuns, true, true, layerX[2], stackY(0, 1, termH), termH)
   nodes.push({
@@ -255,6 +297,7 @@ function buildLayout(
       label: 'fzt-frontend',
       deployedVersion: termDep?.versions?.fztFrontend,
       badge: 'go module',
+      health: lookupEdgeHealth('fzt-frontend', 'fzt-terminal', 'fztFrontend'),
     },
   })
   nodes.push({
@@ -266,6 +309,7 @@ function buildLayout(
     style: { width: PKG_WIDTH },
     data: { label: 'fzt-terminal', deployedVersion: versions.get('fzt-terminal')?.version, badge: 'go module' },
   })
+  const feToTermHealth = lookupEdgeHealth('fzt-frontend', 'fzt-terminal', 'fztFrontend')
   edges.push({
     id: 'pkg-fzt-frontend-out->pkg-fzt-terminal-in',
     source: 'pkg-fzt-frontend-out',
@@ -273,16 +317,15 @@ function buildLayout(
     target: 'pkg-fzt-terminal-in',
     targetHandle: 'left-tgt',
     type: 'default',
-    animated: feActive || termActive,
-    style: edgeStyle(feActive || termActive),
-    markerEnd: edgeMarker(feActive || termActive),
+    animated: feToTermHealth === 'active',
+    style: edgeStyle(feToTermHealth),
+    markerEnd: edgeMarker(feToTermHealth),
   })
 
   // ── Layer 3: middle consumers (stacked vertically) ─────────────
   for (let i = 0; i < MIDDLE_CONSUMERS.length; i++) {
     const { id, label, providesRelease } = MIDDLE_CONSUMERS[i]
     const runs = runsByRepo.get(id) || []
-    const active = isActive(runs)
     const dep = deployed.get(id)
     const h = containerHeight(true, providesRelease)
     cascadeNode(id, label, runs, true, providesRelease, layerX[3], stackY(i, MIDDLE_CONSUMERS.length, h), h)
@@ -299,6 +342,7 @@ function buildLayout(
         label: 'fzt-terminal',
         deployedVersion: dep?.versions?.fztTerminal,
         badge: 'go module',
+        health: lookupEdgeHealth('fzt-terminal', id, 'fztTerminal'),
       },
     })
     if (providesRelease) {
@@ -316,6 +360,7 @@ function buildLayout(
         },
       })
     }
+    const termToMidHealth = lookupEdgeHealth('fzt-terminal', id, 'fztTerminal')
     edges.push({
       id: `pkg-fzt-terminal-out->${inId}`,
       source: 'pkg-fzt-terminal-out',
@@ -323,18 +368,16 @@ function buildLayout(
       target: inId,
       targetHandle: 'left-tgt',
       type: 'default',
-      animated: termActive || active,
-      style: edgeStyle(termActive || active),
-      markerEnd: edgeMarker(termActive || active),
+      animated: termToMidHealth === 'active',
+      style: edgeStyle(termToMidHealth),
+      markerEnd: edgeMarker(termToMidHealth),
     })
   }
 
   // ── Layer 4: app consumers (stacked vertically) ───────────────
-  const browserActive = isActive(runsByRepo.get('fzt-browser') || [])
   for (let i = 0; i < APP_CONSUMERS.length; i++) {
     const { id, label } = APP_CONSUMERS[i]
     const runs = runsByRepo.get(id) || []
-    const active = isActive(runs)
     const dep = deployed.get(id)
     cascadeNode(id, label, runs, true, false, layerX[4], stackY(i, APP_CONSUMERS.length, appH), appH)
 
@@ -350,8 +393,10 @@ function buildLayout(
         label: 'fzt-browser',
         deployedVersion: dep?.versions?.fztBrowser,
         badge: 'release',
+        health: lookupEdgeHealth('fzt-browser', id, 'fztBrowser'),
       },
     })
+    const browserToAppHealth = lookupEdgeHealth('fzt-browser', id, 'fztBrowser')
     edges.push({
       id: `pkg-fzt-browser-out->${inId}`,
       source: 'pkg-fzt-browser-out',
@@ -359,9 +404,9 @@ function buildLayout(
       target: inId,
       targetHandle: 'left-tgt',
       type: 'default',
-      animated: browserActive || active,
-      style: edgeStyle(browserActive || active),
-      markerEnd: edgeMarker(browserActive || active),
+      animated: browserToAppHealth === 'active',
+      style: edgeStyle(browserToAppHealth),
+      markerEnd: edgeMarker(browserToAppHealth),
     })
   }
 
@@ -422,14 +467,14 @@ export default function CIFztView() {
     return map
   }, [runs])
 
-  const { nodes, edges } = useMemo(
-    () => buildLayout(runsByRepo, versions, deployed),
-    [runsByRepo, versions, deployed],
-  )
-
   const grammar = useMemo(
     () => checkGrammar(runs, versions, deployed),
     [runs, versions, deployed],
+  )
+
+  const { nodes, edges } = useMemo(
+    () => buildLayout(runsByRepo, versions, deployed, grammar.edgeHealths),
+    [runsByRepo, versions, deployed, grammar.edgeHealths],
   )
 
   const hasActiveRuns = useMemo(() => {

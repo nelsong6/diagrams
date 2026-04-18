@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { type NodeProps } from '@xyflow/react'
 import type { CIRun } from '../types/ci'
+import type { EdgeHealth } from './ciEdgeStyle'
 
 export interface CICascadeData {
   label: string
@@ -9,6 +10,10 @@ export interface CICascadeData {
   containerHeight: number
   hasConsumed: boolean
   hasProvided: boolean
+  // Aggregated health of this node's incident verification edges. When not
+  // 'idle', overrides pipeline-run status for border/bg/glow so the node
+  // reads the same color as its edges (broken > active > healthy).
+  health?: EdgeHealth
 }
 
 // Layout constants — shared with CIFztView for positioning child package nodes.
@@ -50,6 +55,12 @@ const BG_COLORS: Record<string, string> = {
   cancelled: '#0f172a',
 }
 
+const HEALTH_STYLES: Record<Exclude<EdgeHealth, 'idle'>, { border: string; bg: string }> = {
+  active:  { border: '#f59e0b', bg: '#1a1500' },
+  healthy: { border: '#22c55e', bg: '#0a1a0f' },
+  broken:  { border: '#ef4444', bg: '#1a0f0f' },
+}
+
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
@@ -63,8 +74,12 @@ function timeAgo(dateStr: string): string {
 function CICascadeNodeComponent({ data }: NodeProps) {
   const d = data as unknown as CICascadeData
   const status = getStatus(d.runs)
-  const borderColor = BORDER_COLORS[status] || BORDER_COLORS.idle
-  const bgColor = BG_COLORS[status] || BG_COLORS.idle
+  const health = d.health ?? 'idle'
+  const healthStyle = health !== 'idle' ? HEALTH_STYLES[health] : null
+  const borderColor = healthStyle?.border ?? BORDER_COLORS[status] ?? BORDER_COLORS.idle
+  const bgColor = healthStyle?.bg ?? BG_COLORS[status] ?? BG_COLORS.idle
+  const showGlow = healthStyle != null || (status !== 'idle' && status !== 'cancelled')
+  const pulse = status === 'in_progress' || health === 'active'
   const latestRun = d.runs.length > 0
     ? d.runs.reduce((a, b) => new Date(a.updatedAt) > new Date(b.updatedAt) ? a : b)
     : null
@@ -76,14 +91,14 @@ function CICascadeNodeComponent({ data }: NodeProps) {
   return (
     <div
       className={`rounded-lg border-2 transition-all duration-500 ${
-        status === 'in_progress' ? 'animate-pulse' : ''
+        pulse ? 'animate-pulse' : ''
       } ${latestRun ? 'cursor-pointer' : ''}`}
       style={{
         width: d.containerWidth,
         height: d.containerHeight,
         borderColor,
         backgroundColor: bgColor,
-        boxShadow: status !== 'idle' && status !== 'cancelled' ? `0 0 8px ${borderColor}44` : 'none',
+        boxShadow: showGlow ? `0 0 8px ${borderColor}44` : 'none',
       }}
       onClick={() => latestRun && window.open(latestRun.htmlUrl, '_blank')}
     >

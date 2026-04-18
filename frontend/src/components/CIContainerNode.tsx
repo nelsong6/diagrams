@@ -1,12 +1,17 @@
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { CIRun } from '../types/ci'
+import type { EdgeHealth } from './ciEdgeStyle'
 
 export interface CIContainerData {
   label: string
   containerWidth: number
   containerHeight: number
   runs: CIRun[]
+  // Aggregated health across every host→api edge. Overrides run-status
+  // border color when non-idle so the container reads the same color as
+  // its incident edges.
+  health?: EdgeHealth
 }
 
 function getContainerStatus(runs: CIRun[]) {
@@ -26,6 +31,12 @@ const BORDER_COLORS: Record<string, string> = {
   failure: '#ef4444',
 }
 
+const HEALTH_BORDERS: Record<Exclude<EdgeHealth, 'idle'>, string> = {
+  active: '#f59e0b',
+  healthy: '#22c55e',
+  broken: '#ef4444',
+}
+
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
@@ -39,7 +50,10 @@ function timeAgo(dateStr: string): string {
 function CIContainerNodeComponent({ data }: NodeProps) {
   const d = data as unknown as CIContainerData
   const status = getContainerStatus(d.runs)
-  const borderColor = BORDER_COLORS[status] || BORDER_COLORS.idle
+  const health = d.health ?? 'idle'
+  const borderColor = health !== 'idle'
+    ? HEALTH_BORDERS[health]
+    : (BORDER_COLORS[status] || BORDER_COLORS.idle)
   const latestRun = d.runs.length > 0
     ? d.runs.reduce((a, b) => new Date(a.updatedAt) > new Date(b.updatedAt) ? a : b)
     : null

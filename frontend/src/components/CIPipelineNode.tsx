@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { CIRun, PublishedVersion, DeployedVersion } from '../types/ci'
+import type { EdgeHealth } from './ciEdgeStyle'
 
 export interface CINodeData {
   label: string
@@ -10,6 +11,10 @@ export interface CINodeData {
   publishedVersion?: PublishedVersion
   deployedVersion?: DeployedVersion
   versionError?: string
+  // Aggregated health of this node's incident verification edges. When not
+  // 'idle', overrides pipeline-run status for border/bg/glow so the node
+  // reads the same color as its edges (broken > active > healthy).
+  health?: EdgeHealth
 }
 
 // Estimate node height based on content
@@ -33,6 +38,12 @@ const STATUS_COLORS = {
   success: { border: '#22c55e', bg: '#0a1a0f', glow: '0 0 8px #22c55e33' },
   failure: { border: '#ef4444', bg: '#1a0f0f', glow: '0 0 8px #ef444444' },
   cancelled: { border: '#64748b', bg: '#0f172a', glow: 'none' },
+}
+
+const HEALTH_COLORS: Record<Exclude<EdgeHealth, 'idle'>, { border: string; bg: string; glow: string }> = {
+  active:  { border: '#f59e0b', bg: '#1a1500', glow: '0 0 10px #f59e0b44' },
+  healthy: { border: '#22c55e', bg: '#0a1a0f', glow: '0 0 10px #22c55e44' },
+  broken:  { border: '#ef4444', bg: '#1a0f0f', glow: '0 0 10px #ef444444' },
 }
 
 function getNodeStatus(runs: CIRun[]): keyof typeof STATUS_COLORS {
@@ -63,7 +74,9 @@ function timeAgo(dateStr: string): string {
 function CIPipelineNodeComponent({ data }: NodeProps) {
   const d = data as unknown as CINodeData
   const status = getNodeStatus(d.runs)
-  const colors = STATUS_COLORS[status]
+  const health = d.health ?? 'idle'
+  const colors = health !== 'idle' ? HEALTH_COLORS[health] : STATUS_COLORS[status]
+  const pulse = status === 'in_progress' || health === 'active'
   const latestRun = d.runs.length > 0
     ? d.runs.reduce((a, b) => new Date(a.updatedAt) > new Date(b.updatedAt) ? a : b)
     : null
@@ -80,7 +93,7 @@ function CIPipelineNodeComponent({ data }: NodeProps) {
       <Handle type="target" position={Position.Left} id="left-tgt" className="!bg-transparent !border-0" />
       <div
         className={`rounded-lg px-4 py-3 border-2 min-w-[180px] transition-all duration-500 ${
-          status === 'in_progress' ? 'animate-pulse' : ''
+          pulse ? 'animate-pulse' : ''
         }`}
         style={{
           backgroundColor: colors.bg,
