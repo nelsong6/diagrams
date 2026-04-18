@@ -37,8 +37,8 @@ tofu/             OpenTofu IaC — SWA (Free), DNS CNAME (diagrams.romaine.life)
 - **`/:app`** — Filtered view highlighting a single app's path through infrastructure
 - **`/pipelines`** — Pipeline dependency diagram showing cross-repo CI/CD chains (fzt → my-homepage/fzt-showcase → api) with the dispatch/artifact flow and the lockfile gap issue node
 - **`/ci`** — Live CI dashboard (all repos). Push-based via GitHub App webhooks + SSE
-- **`/ci/fzt`** — fzt asset cascade: fzt → fzt-terminal → my-homepage, fzt-showcase, fzt-picker
-- **`/ci/api`** — Route dispatch chain: host repos at top, API container box below with route package boxes inside. Manual layout (no ELK). Shows version comparison between published and deployed package versions.
+- **`/ci/fzt`** — fzt asset cascade post-split. Direct go.mod edges: `fzt` → `fzt-frontend`/`fzt-terminal`/`fzt-browser`/`fzt-automate`/`fzt-picker` (every consumer direct-imports `fzt`), `fzt-frontend` → `fzt-terminal`, `fzt-terminal` → `fzt-browser`/`fzt-automate`/`fzt-picker`. Release-artifact edges: `fzt-browser` → `my-homepage`/`fzt-showcase` (web bundle downloaded via `gh release download` in each consumer's deploy workflow, not a go.mod require). Horizontal layer-to-layer flow; packages stacked vertically inside each container. The `check-ci` skill encodes this graph for API-side verification. A small cascade grammar badge under the title mirrors that skill — green when every edge has matching producer/consumer versions, yellow if any cascade pipeline is in progress, red on unknown/mismatch with the failing edges listed in a hover tooltip.
+- **`/ci/api`** — Route dispatch chain: host repos at top, API container box below with route package boxes inside. Manual layout (no ELK). Shows version comparison between published and deployed package versions. The `check-ci-api` skill encodes this view's grammar (no unknowns, no mismatches, no orphaned deployed packages) for API-side verification. A small cascade grammar badge under the title mirrors that skill — green when every host's published package version matches the api's deployed version with no orphans, yellow if any host or api pipeline is in progress, red on unknown/mismatch/orphan with the failures listed in a hover tooltip. Same visual language as the `/ci/fzt` badge.
 - **`/ci/tofu`** — Infrastructure repos: infra-bootstrap, api, diagrams, house-hunt, landing-page, emotions-mcp
 
 CI dashboard uses ELK (elkjs) for automatic node positioning and edge routing. Nodes are bottom-aligned per layer with dynamic heights. Webhook events from the `romaine-life-app` GitHub App flow through `api.romaine.life/ci/webhook` → SSE → browser. Cold start backfills from the GitHub API.
@@ -75,11 +75,15 @@ Both use shared Promises to prevent concurrent SSE connections from racing. The 
 
 ### Monitored repos
 
-`fzt`, `fzt-terminal`, `my-homepage`, `fzt-showcase`, `kill-me`, `plant-agent`, `investing`, `house-hunt`, `diagrams`, `api`, `infra-bootstrap`, `fzt-picker`, `landing-page`, `emotions-mcp`.
+`fzt`, `fzt-frontend`, `fzt-terminal`, `fzt-browser`, `fzt-automate`, `fzt-picker`, `my-homepage`, `fzt-showcase`, `kill-me`, `plant-agent`, `investing`, `house-hunt`, `diagrams`, `api`, `infra-bootstrap`, `landing-page`, `emotions-mcp`, `llm-explorer`.
+
+When a new app joins the shared api (route package), two lists must be updated: `REPOS` + `ROUTE_PACKAGES` in `packages/routes/ci.js` (for backfill), AND `apiHostRepos` + `routePackageMap` + `overviewRepos` + `overviewEdges` in `frontend/src/data/ci-views.ts` (for dashboard rendering). A deployed package without a host row on `/ci/api` is a silent orphan caught by the `check-ci-api` skill.
+
+`SITE_URLS` in `ci.js` is separate — only include a repo there if it actually serves `/version.json`. Sites that don't (like `landing-page`) will produce persistent `version error` entries on the dashboard if included.
 
 ## Navigation
 
-`NavSidebar` component — persistent collapsible right-side panel with route list grouped by section. Present on all pages.
+`NavSidebar` component — persistent collapsible right-side panel with route list grouped by section. Present on all pages. Footer fetches `/version.json` (written at deploy time by `full-stack-deploy.yml`) and renders the 7-char SHA linked to the GitHub commit plus a relative timestamp ticking every 60s. The footer hides if `/version.json` 404s (dev mode); `frontend/public/version.json` is gitignored so dev fixtures don't get committed.
 
 ## Architecture Data
 
