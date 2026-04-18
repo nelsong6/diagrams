@@ -187,8 +187,10 @@ function checkApiGrammar(
   deployed: Map<string, DeployedVersion>,
 ): GrammarResult {
   const activeRepos = new Set<string>()
+  const reposWithRuns = new Set<string>()
   for (const run of runs.values()) {
     if (!API_CASCADE_REPOS.has(run.repoName)) continue
+    reposWithRuns.add(run.repoName)
     if (run.status === 'in_progress' || run.status === 'queued') {
       activeRepos.add(run.repoName)
     }
@@ -199,6 +201,15 @@ function checkApiGrammar(
   const apiDeployed = deployed.get('api')
   const apiActive = activeRepos.has('api')
 
+  // Dedupe "no recent runs" failures per repo.
+  const reportedMissingRuns = new Set<string>()
+  const reportMissing = (repo: string) => {
+    if (!reportedMissingRuns.has(repo)) {
+      failures.push(`no recent runs: ${repo}`)
+      reportedMissingRuns.add(repo)
+    }
+  }
+
   for (const host of apiHostRepos) {
     const pkg = routePackageMap[host]
     const published = packageVersions.get(host)?.version
@@ -206,6 +217,19 @@ function checkApiGrammar(
 
     if (activeRepos.has(host) || apiActive) {
       edgeHealths.set(host, 'active')
+    }
+
+    // "No recent runs" on either endpoint = not healthy. Matching versions
+    // without CI evidence is unverified. API prunes runs older than 2h.
+    if (!edgeHealths.has(host) && !reposWithRuns.has(host)) {
+      reportMissing(host)
+      edgeHealths.set(host, 'broken')
+      continue
+    }
+    if (!edgeHealths.has(host) && !reposWithRuns.has('api')) {
+      reportMissing('api')
+      edgeHealths.set(host, 'broken')
+      continue
     }
 
     if (!published) {

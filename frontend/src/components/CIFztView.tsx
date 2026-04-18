@@ -88,8 +88,10 @@ function checkGrammar(
   deployed: Map<string, DeployedVersion>,
 ): GrammarResult {
   const activeRepos = new Set<string>()
+  const reposWithRuns = new Set<string>()
   for (const run of runs.values()) {
     if (!FZT_CASCADE_REPOS.has(run.repoName)) continue
+    reposWithRuns.add(run.repoName)
     if (run.status === 'in_progress' || run.status === 'queued') {
       activeRepos.add(run.repoName)
     }
@@ -97,11 +99,36 @@ function checkGrammar(
 
   const failures: string[] = []
   const edgeHealths = new Map<string, EdgeHealth>()
+  // Dedupe "no recent runs" failures so we report each repo once rather than
+  // once per incident edge.
+  const reportedMissingRuns = new Set<string>()
+  const reportMissing = (repo: string) => {
+    if (!reportedMissingRuns.has(repo)) {
+      failures.push(`no recent runs: ${repo}`)
+      reportedMissingRuns.add(repo)
+    }
+  }
+
   for (const [producer, consumer, field] of VERIFICATION_EDGES) {
     const key = edgeKey(producer, consumer, field)
 
     if (activeRepos.has(producer) || activeRepos.has(consumer)) {
       edgeHealths.set(key, 'active')
+      continue
+    }
+
+    // "No recent runs" on either endpoint is a broken signal — matching
+    // versions without CI evidence is not healthy, it's unverified. The
+    // API prunes runs older than 2h, so this demotes any endpoint that
+    // hasn't had activity in that window.
+    if (!reposWithRuns.has(producer)) {
+      reportMissing(producer)
+      edgeHealths.set(key, 'broken')
+      continue
+    }
+    if (!reposWithRuns.has(consumer)) {
+      reportMissing(consumer)
+      edgeHealths.set(key, 'broken')
       continue
     }
 
