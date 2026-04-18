@@ -23,7 +23,7 @@ let runIdSeq = 1
 
 // Build a CIRun from a test status. Returns null for 'no_runs' so the caller
 // can skip adding it to the runs map.
-export function makeRun(repo: string, status: TestRunStatus, version = 'v0.0.1'): CIRun | null {
+export function makeRun(repo: string, status: TestRunStatus): CIRun | null {
   if (status === 'no_runs') return null
   const isInProgress = status === 'in_progress' || status === 'queued'
   return {
