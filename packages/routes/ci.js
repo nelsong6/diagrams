@@ -36,6 +36,7 @@ const GO_DEPS = {
 const ROUTE_PACKAGES = {
   'my-homepage': '@nelsong6/my-homepage-routes',
   'fzt-terminal': '@nelsong6/fzt-terminal-routes',
+  'fzt-frontend': '@nelsong6/fzt-frontend-routes',
   'diagrams': '@nelsong6/diagrams-routes',
   'kill-me': '@nelsong6/kill-me-routes',
   'plant-agent': '@nelsong6/plant-agent-routes',

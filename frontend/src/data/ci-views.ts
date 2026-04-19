@@ -7,7 +7,7 @@ export interface DispatchEdge {
 // Host repos that publish route packages to the shared API
 
 export const apiHostRepos = [
-  'my-homepage', 'fzt-terminal', 'diagrams',
+  'my-homepage', 'fzt-terminal', 'fzt-frontend', 'diagrams',
   'kill-me', 'plant-agent', 'investing', 'house-hunt',
   'llm-explorer',
 ]
@@ -15,6 +15,7 @@ export const apiHostRepos = [
 export const routePackageMap: Record<string, string> = {
   'my-homepage': 'my-homepage-routes',
   'fzt-terminal': 'fzt-terminal-routes',
+  'fzt-frontend': 'fzt-frontend-routes',
   'diagrams': 'diagrams-routes',
   'kill-me': 'kill-me-routes',
   'plant-agent': 'plant-agent-routes',
