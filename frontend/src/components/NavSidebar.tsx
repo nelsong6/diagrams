@@ -73,6 +73,7 @@ const NAV_SECTIONS = [
       { path: '/fzt/shared', label: 'Shared' },
       { path: '/fzt/proposed', label: 'Proposed' },
       { path: '/fzt/matrix', label: 'Matrix' },
+      { path: '/fzt/keyboard', label: 'Keyboard' },
     ],
   },
   {
