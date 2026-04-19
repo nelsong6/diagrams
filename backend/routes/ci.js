@@ -32,22 +32,9 @@ const GO_DEPS = {
   ],
 };
 
-// Repos that publish route packages to GitHub Packages
-const ROUTE_PACKAGES = {
-  'my-homepage': '@nelsong6/my-homepage-routes',
-  'fzt-frontend': '@nelsong6/fzt-frontend-routes',
-  'diagrams': '@nelsong6/diagrams-routes',
-  'kill-me': '@nelsong6/kill-me-routes',
-  'plant-agent': '@nelsong6/plant-agent-routes',
-  'investing': '@nelsong6/investing-routes',
-  'house-hunt': '@nelsong6/house-hunt-routes',
-  'llm-explorer': '@nelsong6/llm-explorer-routes',
-};
-
 // Sites that serve a /version.json for deployed version backfill.
 // landing-page is intentionally NOT in this list — it doesn't expose
-// /version.json and isn't represented as a node on /ci/api (no route
-// package). Adding it back requires first giving it a version.json in
+// /version.json. Adding it back requires first giving it a version.json in
 // its deploy workflow AND deciding where it should surface on the
 // dashboard.
 const SITE_URLS = {
@@ -101,31 +88,18 @@ async function getInstallationToken(appId, privateKey) {
  * @param {string} opts.webhookSecret - GitHub webhook HMAC signing secret
  * @param {string} [opts.githubAppId] - GitHub App ID for generating installation tokens
  * @param {string} [opts.githubAppPrivateKey] - GitHub App private key (PEM)
- * @param {Record<string, string>} [opts.installedPackages] - route package versions from the host's package-lock
  */
-export function createCIRoutes({ webhookSecret, githubAppId, githubAppPrivateKey, installedPackages }) {
+export function createCIRoutes({ webhookSecret, githubAppId, githubAppPrivateKey }) {
   const router = Router();
 
   // In-memory state
   const runs = new Map();              // key: `${repo}/${runId}` → pipeline run
   const versions = new Map();          // key: repoName → latest published release version
-  const packageVersions = new Map();   // key: repoName → latest published route package version
   const deployedVersions = new Map();  // key: repoName → deployed version info
-  const versionErrors = new Map();    // key: repoName → error string
+  const versionErrors = new Map();     // key: repoName → error string
   const sseClients = new Set();
   let backfillPromise = null;
   let versionBackfillPromise = null;
-
-  // Pre-populate deployed versions from host's package-lock (survives API restart)
-  if (installedPackages && Object.keys(installedPackages).length > 0) {
-    deployedVersions.set('api', {
-      site: 'api.romaine.life',
-      repo: 'api',
-      versions: installedPackages,
-      reportedAt: new Date().toISOString(),
-    });
-    console.log(`[ci] Pre-populated API deployed versions: ${Object.keys(installedPackages).length} packages`);
-  }
 
   function broadcast(event, data) {
     const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -302,35 +276,6 @@ export function createCIRoutes({ webhookSecret, githubAppId, githubAppPrivateKey
         Accept: 'application/vnd.github+json',
       };
 
-      // Fetch latest published route package version from GitHub Packages API
-      const packageFetches = Object.entries(ROUTE_PACKAGES).map(async ([repo, pkgName]) => {
-        try {
-          const shortName = pkgName.replace('@nelsong6/', '');
-          const res = await fetch(
-            `https://api.github.com/users/nelsong6/packages/npm/${shortName}/versions?per_page=1`,
-            { headers },
-          );
-          if (!res.ok) {
-            const msg = `Package API HTTP ${res.status}`;
-            console.error(`[ci] ${msg} for ${repo} (${pkgName})`);
-            versionErrors.set(repo, msg);
-            return;
-          }
-          const data = await res.json();
-          if (!data.length) return;
-          packageVersions.set(repo, {
-            repo: `nelsong6/${repo}`,
-            repoName: repo,
-            version: data[0].name,
-            publishedAt: data[0].created_at,
-            htmlUrl: `https://github.com/nelsong6/${repo}/packages`,
-          });
-        } catch (err) {
-          console.error(`[ci] Package backfill failed for ${repo} (${pkgName}):`, err.message);
-          versionErrors.set(repo, err.message);
-        }
-      });
-
       // Fetch latest GitHub release for each repo (404 = no releases, skip)
       const releaseFetches = REPOS.map(async (repo) => {
         try {
@@ -382,7 +327,7 @@ export function createCIRoutes({ webhookSecret, githubAppId, githubAppPrivateKey
         }
       });
 
-      await Promise.all([...packageFetches, ...releaseFetches, ...siteFetches]);
+      await Promise.all([...releaseFetches, ...siteFetches]);
 
       // Extract Go dependencies from go.mod at the latest release tag
       const goDepFetches = Object.entries(GO_DEPS).map(async ([repo, deps]) => {
@@ -500,27 +445,6 @@ export function createCIRoutes({ webhookSecret, githubAppId, githubAppPrivateKey
     return res.status(200).json({ ignored: true, event });
   });
 
-  // ── Published report — source repos report their published route package version ──
-
-  router.post('/published', (req, res) => {
-    const { repo, repoName, version } = req.body;
-    if (!repoName || !version) {
-      return res.status(400).json({ error: 'Missing repoName or version' });
-    }
-
-    const published = {
-      repo: repo || `nelsong6/${repoName}`,
-      repoName,
-      version,
-      publishedAt: new Date().toISOString(),
-      htmlUrl: `https://github.com/nelsong6/${repoName}/packages`,
-    };
-    packageVersions.set(repoName, published);
-    broadcast('packageVersion', published);
-    res.status(200).json({ received: true, repoName, version });
-  });
-
-
   // ── SSE endpoint ──────────────────────────────────────────────
 
   router.get('/events', async (req, res) => {
@@ -536,7 +460,6 @@ export function createCIRoutes({ webhookSecret, githubAppId, githubAppPrivateKey
     const snapshot = {
       runs: Array.from(runs.values()),
       versions: Array.from(versions.values()),
-      packageVersions: Array.from(packageVersions.values()),
       deployed: Array.from(deployedVersions.values()),
       versionErrors: Object.fromEntries(versionErrors),
     };
@@ -566,7 +489,6 @@ export function createCIRoutes({ webhookSecret, githubAppId, githubAppPrivateKey
   router.get('/versions', (req, res) => {
     res.json({
       releases: Array.from(versions.values()),
-      packages: Array.from(packageVersions.values()),
       deployed: Array.from(deployedVersions.values()),
     });
   });

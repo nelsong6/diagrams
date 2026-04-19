@@ -60,7 +60,6 @@ const NAV_SECTIONS = [
     routes: [
       { path: '/ci', label: 'Dashboard' },
       { path: '/ci/fzt', label: 'fzt' },
-      { path: '/ci/api', label: 'api' },
       { path: '/ci/tofu', label: 'tofu' },
     ],
   },
@@ -87,7 +86,6 @@ const NAV_SECTIONS = [
     label: 'Dev',
     routes: [
       { path: '/ci/fzt/test', label: 'fzt (test)' },
-      { path: '/ci/api/test', label: 'api (test)' },
     ],
   },
 ]

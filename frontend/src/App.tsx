@@ -4,10 +4,8 @@ import DiagramView from './components/DiagramView'
 import PipelineView from './components/PipelineView'
 import CIDashboardView from './components/CIDashboardView'
 import CIFztView from './components/CIFztView'
-import CIApiView from './components/CIApiView'
 import CITofuView from './components/CITofuView'
 import CIFztTestView from './components/CIFztTestView'
-import CIApiTestView from './components/CIApiTestView'
 import NavSidebar from './components/NavSidebar'
 import EmotionsView from './components/EmotionsView'
 import FztArchView from './components/FztArchView'
@@ -47,10 +45,8 @@ export default function App() {
         <Route path="/pipelines" element={<PipelineView />} />
         <Route path="/ci" element={<CIDashboardView />} />
         <Route path="/ci/fzt" element={<CIFztView />} />
-        <Route path="/ci/api" element={<CIApiView />} />
         <Route path="/ci/tofu" element={<CITofuView />} />
         <Route path="/ci/fzt/test" element={<CIFztTestView />} />
-        <Route path="/ci/api/test" element={<CIApiTestView />} />
         <Route path="/fzt" element={<FztArchView />} />
         <Route path="/fzt/proposed" element={<FztProposedView />} />
         <Route path="/fzt/repos" element={<FztReposView />} />

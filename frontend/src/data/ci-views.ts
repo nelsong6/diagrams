@@ -3,26 +3,6 @@ export interface DispatchEdge {
   target: string
 }
 
-// ── api container view ──────────────────────────────────────
-// Host repos that publish route packages to the shared API
-
-export const apiHostRepos = [
-  'my-homepage', 'fzt-frontend', 'diagrams',
-  'kill-me', 'plant-agent', 'investing', 'house-hunt',
-  'llm-explorer',
-]
-
-export const routePackageMap: Record<string, string> = {
-  'my-homepage': 'my-homepage-routes',
-  'fzt-frontend': 'fzt-frontend-routes',
-  'diagrams': 'diagrams-routes',
-  'kill-me': 'kill-me-routes',
-  'plant-agent': 'plant-agent-routes',
-  'investing': 'investing-routes',
-  'house-hunt': 'house-hunt-routes',
-  'llm-explorer': 'llm-explorer-routes',
-}
-
 // ── tofu view ───────────────────────────────────────────────
 // Infrastructure repos with tofu/ directories
 

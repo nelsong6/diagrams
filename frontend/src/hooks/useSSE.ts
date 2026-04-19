@@ -11,7 +11,6 @@ const SSE_URL = `${API_BASE}/ci/events`
 export function useSSE(enabled: boolean) {
   const [runs, setRuns] = useState<Map<string, CIRun>>(new Map())
   const [versions, setVersions] = useState<Map<string, PublishedVersion>>(new Map())
-  const [packageVersions, setPackageVersions] = useState<Map<string, PublishedVersion>>(new Map())
   const [deployed, setDeployed] = useState<Map<string, DeployedVersion>>(new Map())
   const [versionErrors, setVersionErrors] = useState<VersionErrors>({})
   const [status, setStatus] = useState<ConnectionStatus>('disconnected')
@@ -41,12 +40,6 @@ export function useSSE(enabled: boolean) {
       }
       setVersions(verMap)
 
-      const pkgMap = new Map<string, PublishedVersion>()
-      for (const v of snapshot.packageVersions || []) {
-        pkgMap.set(v.repoName, v)
-      }
-      setPackageVersions(pkgMap)
-
       const depMap = new Map<string, DeployedVersion>()
       for (const d of snapshot.deployed || []) {
         depMap.set(d.repo, d)
@@ -71,15 +64,6 @@ export function useSSE(enabled: boolean) {
     es.addEventListener('version', (e) => {
       const ver: PublishedVersion = JSON.parse(e.data)
       setVersions((prev) => {
-        const next = new Map(prev)
-        next.set(ver.repoName, ver)
-        return next
-      })
-    })
-
-    es.addEventListener('packageVersion', (e) => {
-      const ver: PublishedVersion = JSON.parse(e.data)
-      setPackageVersions((prev) => {
         const next = new Map(prev)
         next.set(ver.repoName, ver)
         return next
@@ -128,5 +112,5 @@ export function useSSE(enabled: boolean) {
     return disconnect
   }, [enabled, connect, disconnect])
 
-  return { runs, versions, packageVersions, deployed, versionErrors, status, disconnect }
+  return { runs, versions, deployed, versionErrors, status, disconnect }
 }

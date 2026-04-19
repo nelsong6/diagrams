@@ -38,16 +38,15 @@ tofu/             OpenTofu IaC — SWA (Free), DNS CNAME (diagrams.romaine.life)
 - **`/pipelines`** — Pipeline dependency diagram showing cross-repo CI/CD chains (fzt → my-homepage/fzt-showcase → api) with the dispatch/artifact flow and the lockfile gap issue node
 - **`/ci`** — Live CI dashboard (all repos). Push-based via GitHub App webhooks + SSE
 - **`/ci/fzt`** — fzt asset cascade post-split. Direct go.mod edges: `fzt` → `fzt-frontend`/`fzt-terminal`/`fzt-browser`/`fzt-automate`/`fzt-picker` (every consumer direct-imports `fzt`), `fzt-frontend` → `fzt-terminal`, `fzt-terminal` → `fzt-browser`/`fzt-automate`/`fzt-picker`. Release-artifact edges: `fzt-browser` → `my-homepage`/`fzt-showcase` (web bundle downloaded via `gh release download` in each consumer's deploy workflow, not a go.mod require). Horizontal layer-to-layer flow; packages stacked vertically inside each container. The `check-ci` skill encodes this graph for API-side verification. A small cascade grammar badge under the title mirrors that skill — green when every edge has matching producer/consumer versions, yellow if any cascade pipeline is in progress, red on unknown/mismatch with the failing edges listed in a hover tooltip.
-- **`/ci/api`** — Route dispatch chain: host repos at top, API container box below with route package boxes inside. Manual layout (no ELK). Shows version comparison between published and deployed package versions. The `check-ci-api` skill encodes this view's grammar (no unknowns, no mismatches, no orphaned deployed packages) for API-side verification. A small cascade grammar badge under the title mirrors that skill — green when every host's published package version matches the api's deployed version with no orphans, yellow if any host or api pipeline is in progress, red on unknown/mismatch/orphan with the failures listed in a hover tooltip. Same visual language as the `/ci/fzt` badge.
 - **`/ci/tofu`** — Infrastructure repos: infra-bootstrap, api, diagrams, house-hunt, landing-page, emotions-mcp
 
 CI dashboard uses ELK (elkjs) for automatic node positioning and edge routing. Nodes are bottom-aligned per layer with dynamic heights. Webhook events from the `romaine-life-app` GitHub App flow through `api.romaine.life/ci/webhook` → SSE → browser. Cold start backfills from the GitHub API.
 
 ## Routes (`backend/routes/`)
 
-`createCIRoutes({ webhookSecret, githubAppId, githubAppPrivateKey, installedPackages })` returns an Express Router mounted at `/ci/*` in this app's own backend. Handles GitHub webhook events + SSE stream for the CI dashboard.
+`createCIRoutes({ webhookSecret, githubAppId, githubAppPrivateKey })` returns an Express Router mounted at `/ci/*` in this app's own backend. Handles GitHub webhook events + SSE stream for the CI dashboard.
 
-All state is in-memory (lost on API restart). Five Maps: `runs` (pipeline runs keyed by `repo/runId`), `versions` (latest GitHub release per repo), `packageVersions` (latest published route package version per repo), `deployedVersions` (live deployed version per repo), `versionErrors` (backfill failures per repo). Runs older than 2 hours are pruned on each webhook event.
+All state is in-memory (lost on API restart). Four Maps: `runs` (pipeline runs keyed by `repo/runId`), `versions` (latest GitHub release per repo), `deployedVersions` (live deployed version per repo), `versionErrors` (backfill failures per repo). Runs older than 2 hours are pruned on each webhook event.
 
 ### Auth
 
@@ -58,10 +57,9 @@ GitHub API calls (backfill, npm registry) use GitHub App installation tokens gen
 | Method | Path | Purpose |
 |--------|------|---------|
 | POST | `/webhook` | GitHub App webhook receiver. HMAC-verified (`x-hub-signature-256`). Handles `workflow_run` events (pipeline status) and `release` events (published versions). Broadcasts to SSE clients. Filters out Dependabot runs. |
-| GET | `/events` | SSE stream. Sends `init` (full snapshot including `packageVersions` and `versionErrors`), then `update` (run changes), `version` (releases), `packageVersion` (route package publishes), `deployed` (deploy reports). Triggers cold-start backfill on first connection. 30s keepalive. |
+| GET | `/events` | SSE stream. Sends `init` (full snapshot including `versionErrors`), then `update` (run changes), `version` (releases), `deployed` (deploy reports). Triggers cold-start backfill on first connection. 30s keepalive. |
 | GET | `/status` | JSON snapshot of current runs + connected client count. |
-| GET | `/versions` | JSON snapshot of releases, packages, and deployed versions. |
-| POST | `/published` | Source repos POST `{ repoName, version }` after publishing a route package. Stored in `packageVersions`, broadcast as `packageVersion` SSE event. |
+| GET | `/versions` | JSON snapshot of releases and deployed versions. |
 | POST | `/deployed` | Deploy report endpoint. Consumer sites POST `{ site, repo, versions }` after deploy to register their live versions. |
 
 ### Cold-start backfill
@@ -69,15 +67,15 @@ GitHub API calls (backfill, npm registry) use GitHub App installation tokens gen
 On first SSE connection, two backfill functions run in parallel:
 
 - `backfillFromGitHub()` — fetches the 5 most recent `main`-branch runs per repo from the GitHub API (14 repos).
-- `backfillVersions()` — fetches latest GitHub release per repo, latest route package version per publisher from the GitHub Packages API (`/users/nelsong6/packages/npm/{name}/versions`), and `version.json` from each frontend site URL. Failures are recorded in `versionErrors` and surfaced on dashboard nodes.
+- `backfillVersions()` — fetches latest GitHub release per repo and `version.json` from each frontend site URL. Failures are recorded in `versionErrors` and surfaced on dashboard nodes.
 
-Both use shared Promises to prevent concurrent SSE connections from racing. The `installedPackages` option pre-populates the API's deployed route package versions from its `package-lock.json` at startup (no network call needed).
+Both use shared Promises to prevent concurrent SSE connections from racing.
 
 ### Monitored repos
 
 `fzt`, `fzt-frontend`, `fzt-terminal`, `fzt-browser`, `fzt-automate`, `fzt-picker`, `my-homepage`, `fzt-showcase`, `kill-me`, `plant-agent`, `investing`, `house-hunt`, `diagrams`, `api`, `infra-bootstrap`, `landing-page`, `emotions-mcp`, `llm-explorer`.
 
-When a new app joins the dashboard, two lists must be updated: `REPOS` + `ROUTE_PACKAGES` in `backend/routes/ci.js` (for backfill), AND `apiHostRepos` + `routePackageMap` + `overviewRepos` + `overviewEdges` in `frontend/src/data/ci-views.ts` (for dashboard rendering). A deployed package without a host row on `/ci/api` is a silent orphan caught by the `check-ci-api` skill.
+When a new app joins the dashboard, update `REPOS` in `backend/routes/ci.js` (for run backfill) and `overviewRepos` + `overviewEdges` in `frontend/src/data/ci-views.ts` (for dashboard rendering).
 
 `SITE_URLS` in `ci.js` is separate — only include a repo there if it actually serves `/version.json`. Sites that don't (like `landing-page`) will produce persistent `version error` entries on the dashboard if included.
 
