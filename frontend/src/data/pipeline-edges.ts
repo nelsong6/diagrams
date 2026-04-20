@@ -34,25 +34,6 @@ export const pipelineEdges: Edge[] = [
     label: 'downloads assets',
   },
 
-  // ── my-homepage internal flow ─────────────────────────────────
-  {
-    id: 'homepage-publish-to-pkg',
-    source: 'homepage-publish',
-    target: 'homepage-npm-pkg',
-    style: ARTIFACT,
-    label: 'publishes v0.1.x',
-  },
-
-  // ── my-homepage → api (dispatch) ──────────────────────────────
-  {
-    id: 'homepage-dispatch-api',
-    source: 'homepage-publish',
-    target: 'api-build',
-    style: DISPATCH,
-    animated: true,
-    label: 'dispatch: dependency-updated',
-  },
-
   // ── api internal flow ─────────────────────────────────────────
   {
     id: 'api-build-to-deploy',
@@ -61,15 +42,6 @@ export const pipelineEdges: Edge[] = [
     style: INTERNAL,
     animated: true,
     label: 'workflow_run',
-  },
-
-  // ── npm package → api build (the broken link) ─────────────────
-  {
-    id: 'npm-pkg-to-api-build',
-    source: 'homepage-npm-pkg',
-    target: 'api-build',
-    style: BROKEN,
-    label: 'npm ci uses OLD lockfile',
   },
 
   // ── fzt → fzt-showcase (dispatch) ─────────────────────────────

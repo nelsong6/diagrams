@@ -77,18 +77,6 @@ export const pipelineNodes: PipelineNode[] = [
     },
   },
   {
-    id: 'homepage-publish',
-    type: 'pipeline',
-    position: { x: COL.homepage, y: ROW.w2 },
-    data: {
-      label: 'Publish Routes Package',
-      description: 'Auto-bumps patch version, publishes @nelsong6/my-homepage-routes to GitHub Packages, dispatches dependency-updated to api',
-      trigger: 'push to packages/routes/**',
-      category: 'workflow',
-      repo: 'my-homepage',
-    },
-  },
-  {
     id: 'homepage-tofu',
     type: 'pipeline',
     position: { x: COL.homepage, y: ROW.w3 },
@@ -100,18 +88,6 @@ export const pipelineNodes: PipelineNode[] = [
       repo: 'my-homepage',
     },
   },
-  {
-    id: 'homepage-npm-pkg',
-    type: 'pipeline',
-    position: { x: COL.homepage, y: ROW.w4 },
-    data: {
-      label: 'GitHub Packages',
-      description: '@nelsong6/my-homepage-routes (npm)',
-      category: 'artifact',
-      repo: 'my-homepage',
-    },
-  },
-
   // ── api repo ──────────────────────────────────────────────────
   {
     id: 'api-repo',
