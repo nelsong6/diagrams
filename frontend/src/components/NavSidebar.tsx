@@ -59,6 +59,7 @@ const NAV_SECTIONS = [
     label: 'CI',
     routes: [
       { path: '/ci', label: 'Dashboard' },
+      { path: '/ci/codex', label: 'Codex Queue' },
       { path: '/ci/fzt', label: 'fzt' },
       { path: '/ci/tofu', label: 'tofu' },
     ],
