@@ -6,6 +6,7 @@ import CIDashboardView from './components/CIDashboardView'
 import CIFztView from './components/CIFztView'
 import CITofuView from './components/CITofuView'
 import CIFztTestView from './components/CIFztTestView'
+import CodexQueueView from './components/CodexQueueView'
 import NavSidebar from './components/NavSidebar'
 import EmotionsView from './components/EmotionsView'
 import FztArchView from './components/FztArchView'
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/" element={<DiagramPage />} />
         <Route path="/pipelines" element={<PipelineView />} />
         <Route path="/ci" element={<CIDashboardView />} />
+        <Route path="/ci/codex" element={<CodexQueueView />} />
         <Route path="/ci/fzt" element={<CIFztView />} />
         <Route path="/ci/tofu" element={<CITofuView />} />
         <Route path="/ci/fzt/test" element={<CIFztTestView />} />
