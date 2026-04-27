@@ -7,6 +7,7 @@ const flow = { stroke: '#38bdf8', strokeWidth: 2 }
 const support = { stroke: '#a78bfa', strokeWidth: 1.6 }
 const guardrail = { stroke: '#f97316', strokeWidth: 1.8, strokeDasharray: '6 4' }
 const evidence = { stroke: '#22c55e', strokeWidth: 1.8 }
+const code = { stroke: '#f472b6', strokeWidth: 2.2 }
 
 export const spireLensWorkflowEdges: Edge[] = [
   {
@@ -37,10 +38,28 @@ export const spireLensWorkflowEdges: Edge[] = [
     labelStyle,
   },
   {
+    id: 'planner-code',
+    source: 'planner',
+    target: 'code-agent',
+    style: code,
+    markerEnd,
+    label: 'implementation brief',
+    labelStyle,
+  },
+  {
+    id: 'code-materialize',
+    source: 'code-agent',
+    target: 'materialize',
+    style: flow,
+    markerEnd,
+    label: 'changed repo',
+    labelStyle,
+  },
+  {
     id: 'planner-materialize',
     source: 'planner',
     target: 'materialize',
-    style: flow,
+    style: support,
     markerEnd,
     label: 'scenario recipe',
     labelStyle,
@@ -52,6 +71,15 @@ export const spireLensWorkflowEdges: Edge[] = [
     style: guardrail,
     markerEnd,
     label: 'fail closed',
+    labelStyle,
+  },
+  {
+    id: 'code-abort',
+    source: 'code-agent',
+    target: 'abort',
+    style: guardrail,
+    markerEnd,
+    label: 'too dramatic',
     labelStyle,
   },
   {
@@ -109,6 +137,15 @@ export const spireLensWorkflowEdges: Edge[] = [
     labelStyle,
   },
   {
+    id: 'code-summary',
+    source: 'code-agent',
+    target: 'summary',
+    style: evidence,
+    markerEnd,
+    label: 'cost + diff',
+    labelStyle,
+  },
+  {
     id: 'screenshots-summary',
     source: 'screenshots',
     target: 'summary',
@@ -124,6 +161,15 @@ export const spireLensWorkflowEdges: Edge[] = [
     style: guardrail,
     markerEnd,
     label: 'unsafe or failed',
+    labelStyle,
+  },
+  {
+    id: 'summary-pr',
+    source: 'summary',
+    target: 'pull-request',
+    style: code,
+    markerEnd,
+    label: 'final bullet',
     labelStyle,
   },
 ]

@@ -41,14 +41,20 @@ export default function SpireLensWorkflowView() {
           <span className="inline-block h-2.5 w-2.5 rounded-sm border" style={{ backgroundColor: '#1f1833', borderColor: '#a78bfa' }} /> LLM
         </span>
         <span className="flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm border" style={{ backgroundColor: '#2a1021', borderColor: '#f472b6' }} /> code
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm border" style={{ backgroundColor: '#241d08', borderColor: '#eab308' }} /> PR
+        </span>
+        <span className="flex items-center gap-1">
           <span className="inline-block h-2.5 w-2.5 rounded-sm border" style={{ backgroundColor: '#2b180b', borderColor: '#f97316' }} /> abort path
         </span>
       </div>
 
       <div className="absolute bottom-4 left-4 z-10 max-w-[520px] rounded-md border border-slate-700 bg-slate-900/90 px-4 py-3 text-[11px] leading-relaxed text-slate-400 shadow-xl">
         <div className="mb-1 text-xs font-semibold text-slate-200">Current operating rule</div>
-        Offline scenario saves own character, deck, relics, resources, and next encounter. Runtime MCP owns enemy HP/status,
-        exact piles, screenshots, and verification after the game creates combat.
+        Three LLM phases stay separate: test primitives define the scenario, code changes stay narrowly scoped, and the verifier
+        proves behavior with MCP state plus screenshots before the final PR handoff.
       </div>
 
       <ReactFlow

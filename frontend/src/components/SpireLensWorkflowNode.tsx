@@ -6,10 +6,12 @@ const COLORS: Record<SpireLensWorkflowNodeData['category'], { border: string; bg
   human: { border: '#facc15', bg: '#29210b', text: '#fef3c7', eyebrow: 'input' },
   save: { border: '#38bdf8', bg: '#0b1d2a', text: '#dbeafe', eyebrow: 'save state' },
   agent: { border: '#a78bfa', bg: '#1f1833', text: '#ede9fe', eyebrow: 'llm phase' },
+  code: { border: '#f472b6', bg: '#2a1021', text: '#fce7f3', eyebrow: 'code phase' },
   game: { border: '#fb7185', bg: '#2b1118', text: '#ffe4e6', eyebrow: 'sts2' },
   mcp: { border: '#22c55e', bg: '#0d2416', text: '#dcfce7', eyebrow: 'mcp' },
   evidence: { border: '#14b8a6', bg: '#0b2524', text: '#ccfbf1', eyebrow: 'evidence' },
   guardrail: { border: '#f97316', bg: '#2b180b', text: '#ffedd5', eyebrow: 'guardrail' },
+  pr: { border: '#eab308', bg: '#241d08', text: '#fef9c3', eyebrow: 'review' },
 }
 
 function SpireLensWorkflowNode({ data }: NodeProps) {

@@ -4,7 +4,7 @@ export type SpireLensWorkflowNodeData = {
   label: string
   description: string
   detail?: string
-  category: 'human' | 'save' | 'agent' | 'game' | 'mcp' | 'evidence' | 'guardrail'
+  category: 'human' | 'save' | 'agent' | 'code' | 'game' | 'mcp' | 'evidence' | 'guardrail' | 'pr'
 }
 
 export type SpireLensWorkflowNode = Node<SpireLensWorkflowNodeData>
@@ -13,10 +13,12 @@ const COL = {
   human: 0,
   base: 340,
   plan: 720,
-  install: 1100,
-  game: 1480,
-  runtime: 1860,
-  evidence: 2240,
+  code: 1100,
+  install: 1480,
+  game: 1860,
+  runtime: 2240,
+  evidence: 2620,
+  pr: 3000,
 }
 
 const ROW = {
@@ -71,10 +73,22 @@ export const spireLensWorkflowNodes: SpireLensWorkflowNode[] = [
     position: { x: COL.plan, y: ROW.mid },
     ...wide,
     data: {
-      label: 'Scenario Planner',
-      description: 'Cold LLM phase resolves card identity, base character, needed deck, encounter, and abort conditions.',
+      label: 'LLM 1: Test Primitives',
+      description: 'Cold LLM phase resolves card identity, base character, required deck, encounter, and abort conditions.',
       detail: 'Fails early if the card is ambiguous or the requested setup is not viable.',
       category: 'agent',
+    },
+  },
+  {
+    id: 'code-agent',
+    type: 'spirelens-workflow',
+    position: { x: COL.code, y: ROW.mid },
+    ...wide,
+    data: {
+      label: 'LLM 2: Code Change',
+      description: 'Applies the smallest viable repo change after the primitive plan is known.',
+      detail: 'Fails closed if solving requires a dramatic rewrite, new library, or unclear ownership.',
+      category: 'code',
     },
   },
   {
@@ -131,7 +145,7 @@ export const spireLensWorkflowNodes: SpireLensWorkflowNode[] = [
     position: { x: COL.runtime, y: ROW.bot },
     ...wide,
     data: {
-      label: 'Test Runner Agent',
+      label: 'LLM 3: Verifier',
       description: 'Executes the planned validation steps in the live game and records pass/fail facts.',
       detail: 'Uses small invocations so logs, cost, and failure reasons stay auditable.',
       category: 'agent',
@@ -159,6 +173,18 @@ export const spireLensWorkflowNodes: SpireLensWorkflowNode[] = [
       description: 'Each phase reports result, cost, PR link, screenshots, and explicit pass/fail.',
       detail: 'Verifier failure aborts today; future loop may retry with a new scenario.',
       category: 'evidence',
+    },
+  },
+  {
+    id: 'pull-request',
+    type: 'spirelens-workflow',
+    position: { x: COL.pr, y: ROW.mid },
+    ...wide,
+    data: {
+      label: 'Pull Request',
+      description: 'Final bullet point: link the generated PR with test result, screenshots, and total cost.',
+      detail: 'This is the far-right handoff for human review and merge.',
+      category: 'pr',
     },
   },
   {
